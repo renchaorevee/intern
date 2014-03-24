@@ -14,6 +14,10 @@ define([
 				session = util.createSessionFromRemote(this.remote);
 			},
 
+			beforeEach: function () {
+				return session.get('about:blank');
+			},
+
 			'#getCapabilities': function () {
 				return session.getCapabilities().then(function (capabilities) {
 					assert.isObject(capabilities);
@@ -305,11 +309,175 @@ define([
 			},
 
 			'window sizing (#getWindowSize, #setWindowSize)': function () {
-				// TODO
+				var originalSize;
+				var resizedSize;
+				return session.getWindowSize().then(function (size) {
+					assert.property(size, 'width');
+					assert.property(size, 'height');
+					originalSize = size;
+					return session.setWindowSize(size.width + 20, size.height + 20);
+				}).then(function () {
+					return session.getWindowSize();
+				}).then(function (size) {
+					assert.strictEqual(size.width, originalSize.width + 20);
+					assert.strictEqual(size.height, originalSize.height + 20);
+					resizedSize = size;
+					return session.maximizeWindow();
+				}).then(function () {
+					return session.getWindowSize();
+				}).then(function (size) {
+					assert.operator(size.width, '>', resizedSize.width);
+					assert.operator(size.height, '>', resizedSize.height);
+				}).then(function () {
+					return session.setWindowSize(originalSize.width, originalSize.height);
+				});
 			},
 
 			'window positioning (#getWindowPosition, #setWindowPosition)': function () {
+				var originalPosition;
+				return session.getWindowPosition().then(function (position) {
+					assert.property(position, 'x');
+					assert.property(position, 'y');
+					originalPosition = position;
+					return session.setWindowPosition(position.x + 2, position.y + 2);
+				}).then(function () {
+					return session.getWindowPosition();
+				}).then(function (position) {
+					assert.strictEqual(position.x, originalPosition.x + 2);
+					assert.strictEqual(position.y, originalPosition.y + 2);
+				});
+			},
+
+			'cookies': function () {
 				// TODO
+			},
+
+			'#getPageSource': function () {
+				// Page source is serialised from the current DOM, so will not match the original source on file
+				return session.get(require.toUrl('./data/default.html')).then(function () {
+					return session.getPageSource();
+				}).then(function (source) {
+					assert.include(source, '<!DOCTYPE ');
+					assert.include(source, 'Are you kay-o?');
+				});
+			},
+
+			'#getPageTitle': function () {
+				return session.get(require.toUrl('./data/default.html')).then(function () {
+					return session.getPageTitle();
+				}).then(function (pageTitle) {
+					assert.strictEqual(pageTitle, 'Default');
+				});
+			},
+
+			'#getElement': function () {
+				// TODO
+			},
+
+			// TODO: Test element with implicit timeout
+			// TODO: Test element getter convenience methods
+
+			'#getActiveElement': function () {
+				// TODO
+			},
+
+			'#type': function () {
+				var formElement;
+
+				return session.get(require.toUrl('./data/form.html')).then(function () {
+					return session.getElementById('input');
+				}).then(function (element) {
+					formElement = element;
+					return element.click();
+				}).then(function () {
+					return session.type('hello, world');
+				}).then(function () {
+					return formElement.getAttribute('value');
+				}).then(function (value) {
+					assert.strictEqual(value, 'hello, world');
+				});
+			},
+
+			'#getOrientation': function () {
+				return session.getOrientation().then(function (value) {
+					console.log(value);
+				});
+			},
+
+			'#setOrientation': function () {
+				return session.setOrientation('LANDSCAPE').then(function () {
+
+				});
+			},
+
+			'#getAlertText': function () {
+				return session.get(require.toUrl('./data/prompts.html')).then(function () {
+					return session.getElementById('alert');
+				}).then(function (element) {
+					return element.click();
+				}).then(function () {
+					return session.getAlertText();
+				}).then(function (alertText) {
+					assert.strictEqual(alertText, 'Oh, you thank.');
+					return session.acceptAlert();
+				}).then(function () {
+					return session.execute('return result.alert;');
+				}).then(function (result) {
+					assert.isTrue(result);
+				});
+			},
+
+			'#typeInPrompt': function () {
+				return session.get(require.toUrl('./data/prompts.html')).then(function () {
+					return session.getElementById('prompt');
+				}).then(function (element) {
+					return element.click();
+				}).then(function () {
+					return session.getAlertText();
+				}).then(function (alertText) {
+					assert.strictEqual(alertText, 'The monkey... got charred. Is he all right?');
+					return session.typeInPrompt('yes');
+				}).then(function () {
+					return session.acceptAlert();
+				}).then(function () {
+					return session.execute('return result.prompt;');
+				}).then(function (result) {
+					assert.strictEqual(result, 'yes');
+				});
+			},
+
+			'#acceptAlert': function () {
+				return session.get(require.toUrl('./data/prompts.html')).then(function () {
+					return session.getElementById('confirm');
+				}).then(function (element) {
+					return element.click();
+				}).then(function () {
+					return session.getAlertText();
+				}).then(function (alertText) {
+					assert.strictEqual(alertText, 'Would you like some bananas?');
+					return session.acceptAlert();
+				}).then(function () {
+					return session.execute('return result.confirm;');
+				}).then(function (result) {
+					assert.isTrue(result);
+				});
+			},
+
+			'#dismissAlert': function () {
+				return session.get(require.toUrl('./data/prompts.html')).then(function () {
+					return session.getElementById('confirm');
+				}).then(function (element) {
+					return element.click();
+				}).then(function () {
+					return session.getAlertText();
+				}).then(function (alertText) {
+					assert.strictEqual(alertText, 'Would you like some bananas?');
+					return session.dismissAlert();
+				}).then(function () {
+					return session.execute('return result.confirm;');
+				}).then(function (result) {
+					assert.isFalse(result);
+				});
 			}
 		};
 	});

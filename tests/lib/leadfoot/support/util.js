@@ -29,7 +29,7 @@ define([
 
 			var oldGet = session.get;
 			session.get = function (url) {
-				if (!/^https?:/.test(url)) {
+				if (!/^(?:https?|about):/.test(url)) {
 					url = self.convertPathToUrl(remote, url);
 				}
 
