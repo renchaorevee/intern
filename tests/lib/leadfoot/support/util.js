@@ -24,7 +24,22 @@ define([
 
 		createSessionFromRemote: function (remote) {
 			var server = this.createServerFromRemote(remote);
-			var session = new Session(remote.sessionId, server);
+			var capabilities = remote.capabilities;
+
+			// capabilities on Intern 1.5- remote objects are exposed through the environment type object,
+			// but that object contains some additional features that causes a deepEqual comparison to fail;
+			// extracting its own properties onto a plain object ensures that capabilities comparison passes,
+			// assuming the server is not defective
+			if (!capabilities && remote.environmentType) {
+				capabilities = {};
+				for (var k in remote.environmentType) {
+					if (remote.environmentType.hasOwnProperty(k)) {
+						capabilities[k] = remote.environmentType[k];
+					}
+				}
+			}
+
+			var session = new Session(remote.sessionId, server, capabilities);
 			var self = this;
 
 			var oldGet = session.get;

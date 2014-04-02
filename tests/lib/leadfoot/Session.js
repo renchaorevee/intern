@@ -1,11 +1,68 @@
 define([
 	'intern!object',
 	'intern/chai!assert',
+	'dojo/promise/all',
 	'./support/util',
+	'../../../lib/leadfoot/strategies',
 	'require'
-], function (registerSuite, assert, util, require) {
+], function (registerSuite, assert, whenAll, util, strategies, require) {
 	registerSuite(function () {
 		var session;
+
+		function createStorageTests(type) {
+			var clear = 'clear' + type + 'Storage';
+			var getKeys = 'get' + type + 'StorageKeys';
+			var get = 'get' + type + 'StorageItem';
+			var set = 'set' + type + 'StorageItem';
+			var del = 'delete' + type + 'StorageItem';
+			var getLength = 'get' + type + 'StorageLength';
+
+			return function () {
+				if (!session.capabilities.webStorageEnabled) {
+					return;
+				}
+
+				return session.get(require.toUrl('./data/default.html')).then(function () {
+					return session[set]('foo', 'foo');
+				}).then(function () {
+					return session[clear]();
+				}).then(function () {
+					return session[getLength]();
+				}).then(function (length) {
+					assert.strictEqual(length, 0, 'Cleared storage should contain no data');
+					return session[set]('foo', 'foo');
+				}).then(function () {
+					return session[set]('bar', 'bar');
+				}).then(function () {
+					return session[set]('foo', 'foofoo');
+				}).then(function () {
+					return session[getLength]();
+				}).then(function (length) {
+					assert.strictEqual(length, 2, 'Getting size should return the number of data items in storage');
+					return session[getKeys]();
+				}).then(function (keys) {
+					assert.sameMembers(keys, [ 'foo', 'bar' ], 'Storage should contain set keys');
+					return session[get]('foo');
+				}).then(function (value) {
+					assert.strictEqual(value, 'foofoo', 'Getting item should retrieve correct stored value');
+					return session[del]('not-existing');
+				}).then(function () {
+					return session[getLength]();
+				}).then(function (length) {
+					assert.strictEqual(length, 2, 'Deleting non-existing key should not change size of storage');
+					return session[del]('foo');
+				}).then(function () {
+					return session[getKeys]();
+				}).then(function (keys) {
+					assert.deepEqual(keys, [ 'bar' ], 'Deleting existing key should reduce size of storage');
+					return session[clear]();
+				}).otherwise(function (error) {
+					return session[clear]().then(function () {
+						throw error;
+					});
+				});
+			};
+		}
 
 		return {
 			name: 'lib/leadfoot/Session',
@@ -15,12 +72,15 @@ define([
 			},
 
 			beforeEach: function () {
-				return session.get('about:blank');
+				return session.get('about:blank').then(function () {
+					return session.setTimeout('implicit', 0);
+				});
 			},
 
 			'#getCapabilities': function () {
 				return session.getCapabilities().then(function (capabilities) {
 					assert.isObject(capabilities);
+					assert.deepEqual(capabilities, session.capabilities);
 				});
 			},
 
@@ -42,9 +102,13 @@ define([
 				});
 			},
 
+			// TODO: getTimeout convenience methods
+
 			'#setTimeout': function () {
 				// TODO
 			},
+
+			// TODO: setTimeout convenience methods
 
 			'window handle information (#getCurrentWindowHandle, #getAllWindowHandles)': function () {
 				var currentHandle;
@@ -235,6 +299,10 @@ define([
 			})(),
 
 			'#takeScreenshot': function () {
+				if (!session.capabilities.takesScreenshot) {
+					return;
+				}
+
 				var magic = [ 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a ];
 
 				return session.takeScreenshot().then(function (screenshot) {
@@ -348,8 +416,49 @@ define([
 				});
 			},
 
-			'cookies': function () {
-				// TODO
+			'cookies (#getCookies, #setCookie, #clearCookies, #deleteCookie)': function () {
+				return session.get(require.toUrl('./data/default.html')).then(function () {
+					return session.setCookie({ name: 'foo', value: '123' });
+				}).then(function () {
+					return session.clearCookies();
+				}).then(function () {
+					return session.getCookies();
+				}).then(function (cookies) {
+					assert.lengthOf(cookies, 0);
+					return session.setCookie({ name: 'foo', value: '123' });
+				}).then(function () {
+					return session.setCookie({ name: 'bar', value: '234' });
+				}).then(function () {
+					return session.setCookie({ name: 'baz', value: '345' });
+				}).then(function () {
+					return session.setCookie({ name: 'baz', value: '456' });
+				}).then(function () {
+					return session.deleteCookie('bar');
+				}).then(function () {
+					return session.getCookies();
+				}).then(function (cookies) {
+					assert.lengthOf(cookies, 2);
+
+					// Different browsers return cookies in different orders; some return the last modified cookie
+					// first, others return the first created cookie first
+					var fooCookie = cookies[0].name === 'foo' ? cookies[0] : cookies[1];
+					var bazCookie = cookies[0].name === 'baz' ? cookies[0] : cookies[1];
+
+					assert.strictEqual(bazCookie.name, 'baz');
+					assert.strictEqual(bazCookie.value, '456');
+					assert.strictEqual(fooCookie.name, 'foo');
+					assert.strictEqual(fooCookie.value, '123');
+					return session.clearCookies();
+				}).then(function () {
+					return session.getCookies();
+				}).then(function (cookies) {
+					assert.lengthOf(cookies, 0);
+					return session.clearCookies();
+				}).otherwise(function (error) {
+					return session.clearCookies().then(function () {
+						throw error;
+					});
+				});
 			},
 
 			'#getPageSource': function () {
@@ -370,16 +479,209 @@ define([
 				});
 			},
 
-			'#getElement': function () {
-				// TODO
-			},
+			'#getElement': (function () {
+				function getId(element) {
+					assert.property(element, 'elementId', 'Returned object should look like an element object');
+					return element.getAttribute('id');
+				}
 
-			// TODO: Test element with implicit timeout
-			// TODO: Test element getter convenience methods
+				return function () {
+					return session.get(require.toUrl('./data/elements.html')).then(function () {
+						return session.getElement('id', 'a');
+					}).then(getId).then(function (id) {
+						assert.strictEqual(id, 'a');
+						return session.getElement('class name', 'b');
+					}).then(getId).then(function (id) {
+						assert.strictEqual(id, 'b2', 'Returned element should be the first in the document');
+						return session.getElement('css selector', '#c span.b');
+					}).then(getId).then(function (id) {
+						assert.strictEqual(id, 'b3');
+						return session.getElement('name', 'makeD');
+					}).then(getId).then(function (id) {
+						assert.strictEqual(id, 'makeD');
+						return session.getElement('link text', 'What a cute, yellow backpack.');
+					}).then(getId).then(function (id) {
+						assert.strictEqual(id, 'c');
+						return session.getElement('partial link text', 'cute, yellow');
+					}).then(getId).then(function (id) {
+						assert.strictEqual(id, 'c');
+						return session.getElement('tag name', 'span');
+					}).then(getId).then(function (id) {
+						assert.strictEqual(id, 'b3');
+						return session.getElement('xpath', 'id("e")/span[1]');
+					}).then(getId).then(function (id) {
+						assert.strictEqual(id, 'f');
+						return session.getElement('id', 'does-not-exist');
+					}).then(function () {
+						throw new Error('Requesting non-existing element should throw error');
+					}, function (error) {
+						assert.strictEqual(error.name, 'NoSuchElement');
+					});
+				};
+			})(),
 
-			'#getActiveElement': function () {
-				// TODO
-			},
+			'#getElement (with implicit timeout)': (function () {
+				var startTime;
+				return function () {
+					return session.get(require.toUrl('./data/elements.html')).then(function () {
+						return session.setTimeout('implicit', 2000);
+					}).then(function () {
+						startTime = Date.now();
+						return session.getElement('id', 'd');
+					}).then(function () {
+						throw new Error('Requesting non-existing element should throw error');
+					}, function () {
+						assert.closeTo(Date.now(), startTime + 2000, 500,
+							'Driver should wait for implicit timeout before continuing');
+						return session.getElement('id', 'makeD');
+					}).then(function (element) {
+						return element.click();
+					}).then(function () {
+						startTime = Date.now();
+						return session.getElement('id', 'd');
+					}).then(function (element) {
+						assert.closeTo(Date.now(), startTime + 250, 500,
+							'Driver should not wait until end of implicit timeout once element is available');
+						assert.property(element, 'elementId');
+						return element.getAttribute('id');
+					}).then(function (id) {
+						assert.strictEqual(id, 'd');
+					});
+				};
+			})(),
+
+			'#getElements': (function () {
+				function getIds(elements) {
+					elements.forEach(function (element, index) {
+						assert.property(element, 'elementId', 'Returned object ' + index +
+							' should look like an element object');
+					});
+
+					return whenAll(elements.map(function (element) {
+						return element.getAttribute('id');
+					}));
+				}
+
+				return function () {
+					return session.get(require.toUrl('./data/elements.html')).then(function () {
+						return session.getElements('id', 'a');
+					}).then(getIds).then(function (ids) {
+						assert.deepEqual(ids, [ 'a' ]);
+						return session.getElements('class name', 'b');
+					}).then(getIds).then(function (ids) {
+						assert.deepEqual(ids, [ 'b2', 'b1', 'b3', 'b4' ]);
+						return session.getElements('css selector', '#c span.b');
+					}).then(getIds).then(function (ids) {
+						assert.deepEqual(ids, [ 'b3', 'b4' ]);
+						return session.getElements('name', 'makeD');
+					}).then(getIds).then(function (ids) {
+						assert.deepEqual(ids, [ 'makeD', 'killE' ]);
+						return session.getElements('link text', 'What a cute, yellow backpack.');
+					}).then(getIds).then(function (ids) {
+						assert.deepEqual(ids, [ 'c', 'c2' ]);
+						return session.getElements('partial link text', 'cute, yellow');
+					}).then(getIds).then(function (ids) {
+						assert.deepEqual(ids, [ 'c', 'c2' ]);
+						return session.getElements('tag name', 'span');
+					}).then(getIds).then(function (ids) {
+						assert.deepEqual(ids, [ 'b3', 'b4', 'f', 'g' ]);
+						return session.getElements('xpath', 'id("e")/span');
+					}).then(getIds).then(function (ids) {
+						assert.deepEqual(ids, [ 'f', 'g' ]);
+						return session.getElements('id', 'does-not-exist');
+					}).then(function (elements) {
+						assert.deepEqual(elements, []);
+					});
+				};
+			})(),
+
+			'#getElement convenience methods': (function () {
+				var originalMethod;
+				var calledWith;
+				var suite = {
+					setup: function () {
+						originalMethod = session.getElement;
+						session.getElement = function () {
+							calledWith = arguments;
+						};
+					},
+					beforeEach: function () {
+						calledWith = null;
+					},
+
+					teardown: function () {
+						session.getElement = originalMethod;
+					}
+				};
+
+				strategies.suffixes.forEach(function (suffix, index) {
+					suite['#getElementBy' + suffix] = function () {
+						session['getElementBy' + suffix]('ok');
+						assert.ok(calledWith);
+						assert.strictEqual(calledWith[0], strategies[index]);
+						assert.strictEqual(calledWith[1], 'ok');
+					};
+				});
+
+				return suite;
+			})(),
+
+			'#getElements convenience methods': (function () {
+				var originalMethod;
+				var calledWith;
+				var suite = {
+					setup: function () {
+						originalMethod = session.getElement;
+						session.getElements = function () {
+							calledWith = arguments;
+						};
+					},
+					beforeEach: function () {
+						calledWith = null;
+					},
+					teardown: function () {
+						session.getElements = originalMethod;
+					}
+				};
+
+				strategies.suffixes.forEach(function (suffix, index) {
+					if (suffix === 'Id') {
+						return;
+					}
+
+					suite['#getElementsBy' + suffix] = function () {
+						session['getElementsBy' + suffix]('ok');
+						assert.ok(calledWith);
+						assert.strictEqual(calledWith[0], strategies[index]);
+						assert.strictEqual(calledWith[1], 'ok');
+					};
+				});
+
+				return suite;
+			})(),
+
+			// TODO: waitForDeletedElement
+
+			'#getActiveElement': (function () {
+				return function () {
+					return session.get(require.toUrl('./data/form.html')).then(function () {
+						return session.getActiveElement();
+					}).then(function (element) {
+						return element.getTagName();
+					}).then(function (tagName) {
+						assert.strictEqual(tagName, 'body');
+						return session.execute(function () {
+							document.getElementById('input').focus();
+						});
+					}).then(function () {
+						return session.getActiveElement();
+					}).then(function (element) {
+						return element.getAttribute('id');
+					}).then(function (id) {
+						assert.strictEqual(id, 'input');
+					});
+				};
+			})(),
 
 			'#type': function () {
 				var formElement;
@@ -399,18 +701,31 @@ define([
 			},
 
 			'#getOrientation': function () {
+				if (!session.capabilities.rotatable) {
+					return;
+				}
+
 				return session.getOrientation().then(function (value) {
+					// TODO: learn intended response
 					console.log(value);
 				});
 			},
 
 			'#setOrientation': function () {
-				return session.setOrientation('LANDSCAPE').then(function () {
+				if (!session.capabilities.rotatable) {
+					return;
+				}
 
+				return session.setOrientation('LANDSCAPE').then(function () {
+					// TODO: learn intended response
 				});
 			},
 
 			'#getAlertText': function () {
+				if (!session.capabilities.handlesAlerts) {
+					return;
+				}
+
 				return session.get(require.toUrl('./data/prompts.html')).then(function () {
 					return session.getElementById('alert');
 				}).then(function (element) {
@@ -428,6 +743,10 @@ define([
 			},
 
 			'#typeInPrompt': function () {
+				if (!session.capabilities.handlesAlerts) {
+					return;
+				}
+
 				return session.get(require.toUrl('./data/prompts.html')).then(function () {
 					return session.getElementById('prompt');
 				}).then(function (element) {
@@ -447,6 +766,10 @@ define([
 			},
 
 			'#acceptAlert': function () {
+				if (!session.capabilities.handlesAlerts) {
+					return;
+				}
+
 				return session.get(require.toUrl('./data/prompts.html')).then(function () {
 					return session.getElementById('confirm');
 				}).then(function (element) {
@@ -464,6 +787,10 @@ define([
 			},
 
 			'#dismissAlert': function () {
+				if (!session.capabilities.handlesAlerts) {
+					return;
+				}
+
 				return session.get(require.toUrl('./data/prompts.html')).then(function () {
 					return session.getElementById('confirm');
 				}).then(function (element) {
@@ -478,7 +805,177 @@ define([
 				}).then(function (result) {
 					assert.isFalse(result);
 				});
-			}
+			},
+
+			'#moveMouseTo': function () {
+				return session.get(require.toUrl('./data/pointer.html')).then(function () {
+					return session.moveMouseTo(100, 12);
+				}).then(function () {
+					return session.execute('return result.mousemove.a;');
+				}).then(function (event) {
+					assert.strictEqual(event.clientX, 100);
+					assert.strictEqual(event.clientY, 12);
+					return session.moveMouseTo(100, 41);
+				}).then(function () {
+					return session.execute('return result.mousemove.b;');
+				}).then(function (event) {
+					assert.strictEqual(event.clientX, 200);
+					assert.strictEqual(event.clientY, 53);
+					return session.getElementById('c');
+				}).then(function (element) {
+					return session.moveMouseTo(element).then(function () {
+						return session.execute('return result.mousemove.c;');
+					}).then(function (event) {
+						assert.closeTo(event.clientX, 450, 4);
+						assert.closeTo(event.clientY, 90, 4);
+						return session.moveMouseTo(element, 2, 4);
+					});
+				}).then(function () {
+					return session.execute('return result.mousemove.c;');
+				}).then(function (event) {
+					assert.closeTo(event.clientX, 352, 4);
+					assert.closeTo(event.clientY, 80, 4);
+				});
+			},
+
+			'#click': function () {
+				function click(button) {
+					return function () {
+						return session.click(button).then(function () {
+							return session.execute('return result.click.a;');
+						}).then(function (event) {
+							assert.strictEqual(event.button, button);
+							return session.execute('return result.mousedown.a;').then(function (mouseDownEvent) {
+								assert.closeTo(event.timeStamp, mouseDownEvent.timeStamp, 300);
+								assert.operator(mouseDownEvent.timeStamp, '<=', event.timeStamp);
+								return session.execute('return result.mouseup.a;');
+							}).then(function (mouseUpEvent) {
+								assert.closeTo(event.timeStamp, mouseUpEvent.timeStamp, 300);
+								assert.operator(mouseUpEvent.timeStamp, '<=', event.timeStamp);
+							});
+						});
+					};
+				}
+
+				return session.get(require.toUrl('./data/pointer.html')).then(function () {
+					return session.getElementById('a');
+				}).then(function (element) {
+					return session.moveMouseTo(element);
+				}).then(click(0));
+
+				// TODO: Right-click/middle-click are unreliable in browsers; find a way to test them.
+			},
+
+			'#pressMouseButton, #releaseMouseButton': function () {
+				return session.get(require.toUrl('./data/pointer.html')).then(function () {
+					return session.getElementById('a');
+				}).then(function (element) {
+					return session.moveMouseTo(element);
+				}).then(function () {
+					return session.pressMouseButton();
+				}).then(function () {
+					return session.getElementById('b');
+				}).then(function (element) {
+					return session.moveMouseTo(element);
+				}).then(function () {
+					return session.releaseMouseButton();
+				}).then(function () {
+					/*jshint maxlen:140 */
+					return session.execute('return result;');
+				}).then(function (result) {
+					assert.isUndefined(result.mouseup.a);
+					assert.isUndefined(result.mousedown.b);
+					assert.isObject(result.mousedown.a);
+					assert.isObject(result.mouseup.b);
+				});
+			},
+
+			'#doubleClick': function () {
+				return session.get(require.toUrl('./data/pointer.html')).then(function () {
+					return session.getElementById('a');
+				}).then(function (element) {
+					return session.moveMouseTo(element);
+				}).then(function () {
+					return session.doubleClick();
+				}).then(function () {
+					return session.execute('return result');
+				}).then(function (result) {
+					assert.isObject(result.mousedown.a);
+					assert.isObject(result.mouseup.a);
+					assert.isObject(result.click.a);
+					assert.isObject(result.dblclick.a);
+
+					assert.operator(result.mousedown.a.timeStamp, '<=', result.mouseup.a.timeStamp);
+					assert.operator(result.mouseup.a.timeStamp, '<=', result.click.a.timeStamp);
+					assert.operator(result.click.a.timeStamp, '<=', result.dblclick.a.timeStamp);
+				});
+			},
+
+			// TODO: Touch
+
+			'geolocation (#getGeolocation, #setGeolocation)': function () {
+				if (!session.capabilities.locationContextEnabled) {
+					return;
+				}
+
+				return session.get(require.toUrl('./data/default.html')).then(function () {
+					return session.setGeolocation({ latitude: 123, longitude: -22.334455, altitude: 1000 });
+				}).then(function () {
+					return session.getGeolocation();
+				}).then(function (location) {
+					assert.isObject(location);
+					assert.strictEqual(location.latitude, 123);
+					assert.strictEqual(location.longitude, -22.334455);
+
+					// Geolocation implementations that cannot provide altitude information shall return `null`,
+					// http://dev.w3.org/geo/api/spec-source.html#altitude
+					if (location.altitude !== null) {
+						assert.strictEqual(location.altitude, 1000);
+					}
+				});
+			},
+
+			'#getLogsFor': function () {
+				return session.get(require.toUrl('./data/default.html')).then(function () {
+					return session.getAvailableLogTypes();
+				}).then(function (types) {
+					return session.getLogsFor(types[0]);
+				}).then(function (logs) {
+					assert.isArray(logs);
+
+					var log = logs[0];
+					assert.isObject(log);
+					assert.property(log, 'timestamp');
+					assert.property(log, 'level');
+					assert.property(log, 'message');
+					assert.isNumber(log.timestamp);
+					assert.isString(log.level);
+					assert.isString(log.message);
+				});
+			},
+
+			'#getAvailableLogTypes': function () {
+				return session.get(require.toUrl('./data/default.html')).then(function () {
+					return session.getAvailableLogTypes();
+				}).then(function (types) {
+					assert.isArray(types);
+				});
+			},
+
+			'#getApplicationCacheStatus': function () {
+				if (!session.capabilities.applicationCacheEnabled) {
+					return;
+				}
+
+				return session.get(require.toUrl('./data/default.html')).then(function () {
+					return session.getApplicationCacheStatus();
+				}).then(function (status) {
+					assert.strictEqual(status, 0);
+				});
+			},
+
+			'local storage': createStorageTests('Local'),
+			'session storage': createStorageTests('Session')
 		};
 	});
 });

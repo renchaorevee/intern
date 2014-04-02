@@ -73,6 +73,7 @@ define([
 								desiredCapabilities.browserName,
 								'Returned browser should be requested browser'
 							);
+							assert.deepEqual(capabilities, session.capabilities);
 						});
 					},
 
