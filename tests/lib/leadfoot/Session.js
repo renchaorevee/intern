@@ -9,6 +9,45 @@ define([
 	registerSuite(function () {
 		var session;
 
+		function createStubbedSuite(stubbedMethodName, testMethodName, placeholders, firstArguments) {
+			var originalMethod;
+			var calledWith;
+			var extraArguments = [];
+			var suite = {
+				setup: function () {
+					originalMethod = session[stubbedMethodName];
+					session[stubbedMethodName] = function () {
+						calledWith = arguments;
+					};
+
+					for (var i = 0, j = originalMethod.length - 1; i < j; ++i) {
+						extraArguments.push('ok' + (i + 2));
+					}
+				},
+				beforeEach: function () {
+					calledWith = null;
+				},
+
+				teardown: function () {
+					session[stubbedMethodName] = originalMethod;
+				}
+			};
+
+			placeholders.forEach(function (placeholder, index) {
+				var method = testMethodName.replace('_', placeholder);
+
+				suite['#' + method] = function () {
+					assert.isFunction(session[method]);
+					session[method].apply(session, extraArguments);
+					assert.ok(calledWith);
+					assert.strictEqual(calledWith[0], firstArguments[index]);
+					assert.deepEqual(Array.prototype.slice.call(calledWith, 1), extraArguments);
+				};
+			});
+
+			return suite;
+		}
+
 		function createStorageTests(type) {
 			var clear = 'clear' + type + 'Storage';
 			var getKeys = 'get' + type + 'StorageKeys';
@@ -68,19 +107,14 @@ define([
 			name: 'lib/leadfoot/Session',
 
 			setup: function () {
-				session = util.createSessionFromRemote(this.remote);
+				return util.createSessionFromRemote(this.remote).then(function () {
+					session = arguments[0];
+				});
 			},
 
 			beforeEach: function () {
 				return session.get('about:blank').then(function () {
 					return session.setTimeout('implicit', 0);
-				});
-			},
-
-			'#getCapabilities': function () {
-				return session.getCapabilities().then(function (capabilities) {
-					assert.isObject(capabilities);
-					assert.deepEqual(capabilities, session.capabilities);
 				});
 			},
 
@@ -102,13 +136,19 @@ define([
 				});
 			},
 
-			// TODO: getTimeout convenience methods
+			'#getTimeout convenience methods': createStubbedSuite(
+				'getTimeout',
+				'get_Timeout',
+				[ 'ExecuteAsync', 'Implicit', 'PageLoad' ],
+				[ 'script', 'implicit', 'page load' ]
+			),
 
-			'#setTimeout': function () {
-				// TODO
-			},
-
-			// TODO: setTimeout convenience methods
+			'#setTimeout convenience methods': createStubbedSuite(
+				'setTimeout',
+				'set_Timeout',
+				[ 'ExecuteAsync', 'Implicit', 'PageLoad' ],
+				[ 'script', 'implicit', 'page load' ]
+			),
 
 			'window handle information (#getCurrentWindowHandle, #getAllWindowHandles)': function () {
 				var currentHandle;
@@ -383,30 +423,38 @@ define([
 					assert.property(size, 'width');
 					assert.property(size, 'height');
 					originalSize = size;
-					return session.setWindowSize(size.width + 20, size.height + 20);
-				}).then(function () {
-					return session.getWindowSize();
-				}).then(function (size) {
-					assert.strictEqual(size.width, originalSize.width + 20);
-					assert.strictEqual(size.height, originalSize.height + 20);
-					resizedSize = size;
-					return session.maximizeWindow();
-				}).then(function () {
-					return session.getWindowSize();
-				}).then(function (size) {
-					assert.operator(size.width, '>', resizedSize.width);
-					assert.operator(size.height, '>', resizedSize.height);
-				}).then(function () {
-					return session.setWindowSize(originalSize.width, originalSize.height);
+
+					if (session.capabilities.dynamicViewport) {
+						return session.setWindowSize(size.width + 20, size.height + 20).then(function () {
+							return session.getWindowSize();
+						}).then(function (size) {
+							assert.strictEqual(size.width, originalSize.width + 20);
+							assert.strictEqual(size.height, originalSize.height + 20);
+							resizedSize = size;
+							return session.maximizeWindow();
+						}).then(function () {
+							return session.getWindowSize();
+						}).then(function (size) {
+							assert.operator(size.width, '>', resizedSize.width);
+							assert.operator(size.height, '>', resizedSize.height);
+						}).then(function () {
+							return session.setWindowSize(originalSize.width, originalSize.height);
+						});
+					}
 				});
 			},
 
 			'window positioning (#getWindowPosition, #setWindowPosition)': function () {
+				if (!session.capabilities.dynamicViewport) {
+					return;
+				}
+
 				var originalPosition;
 				return session.getWindowPosition().then(function (position) {
 					assert.property(position, 'x');
 					assert.property(position, 'y');
 					originalPosition = position;
+
 					return session.setWindowPosition(position.x + 2, position.y + 2);
 				}).then(function () {
 					return session.getWindowPosition();
@@ -466,7 +514,8 @@ define([
 				return session.get(require.toUrl('./data/default.html')).then(function () {
 					return session.getPageSource();
 				}).then(function (source) {
-					assert.include(source, '<!DOCTYPE ');
+					assert.include(source, '<meta charset="utf-8"');
+					assert.include(source, '<title>Default</title>');
 					assert.include(source, 'Are you kay-o?');
 				});
 			},
@@ -595,72 +644,28 @@ define([
 				};
 			})(),
 
-			'#getElement convenience methods': (function () {
-				var originalMethod;
-				var calledWith;
-				var suite = {
-					setup: function () {
-						originalMethod = session.getElement;
-						session.getElement = function () {
-							calledWith = arguments;
-						};
-					},
-					beforeEach: function () {
-						calledWith = null;
-					},
+			'#getElement convenience methods': createStubbedSuite(
+				'getElement',
+				'getElementBy_',
+				strategies.suffixes,
+				strategies
+			),
 
-					teardown: function () {
-						session.getElement = originalMethod;
-					}
-				};
-
-				strategies.suffixes.forEach(function (suffix, index) {
-					suite['#getElementBy' + suffix] = function () {
-						session['getElementBy' + suffix]('ok');
-						assert.ok(calledWith);
-						assert.strictEqual(calledWith[0], strategies[index]);
-						assert.strictEqual(calledWith[1], 'ok');
-					};
-				});
-
-				return suite;
-			})(),
-
-			'#getElements convenience methods': (function () {
-				var originalMethod;
-				var calledWith;
-				var suite = {
-					setup: function () {
-						originalMethod = session.getElement;
-						session.getElements = function () {
-							calledWith = arguments;
-						};
-					},
-					beforeEach: function () {
-						calledWith = null;
-					},
-					teardown: function () {
-						session.getElements = originalMethod;
-					}
-				};
-
-				strategies.suffixes.forEach(function (suffix, index) {
-					if (suffix === 'Id') {
-						return;
-					}
-
-					suite['#getElementsBy' + suffix] = function () {
-						session['getElementsBy' + suffix]('ok');
-						assert.ok(calledWith);
-						assert.strictEqual(calledWith[0], strategies[index]);
-						assert.strictEqual(calledWith[1], 'ok');
-					};
-				});
-
-				return suite;
-			})(),
+			'#getElements convenience methods': createStubbedSuite(
+				'getElements',
+				'getElementsBy_',
+				strategies.suffixes.filter(function (suffix) { return suffix !== 'Id'; }),
+				strategies.filter(function (strategy) { return strategy !== 'id'; })
+			),
 
 			// TODO: waitForDeletedElement
+
+			'#waitForDeletedElement convenience methods': createStubbedSuite(
+				'waitForDeletedElement',
+				'waitForDeletedElementBy_',
+				strategies.suffixes,
+				strategies
+			),
 
 			'#getActiveElement': (function () {
 				return function () {
@@ -706,8 +711,7 @@ define([
 				}
 
 				return session.getOrientation().then(function (value) {
-					// TODO: learn intended response
-					console.log(value);
+					assert.include([ 'PORTRAIT', 'LANDSCAPE' ], value);
 				});
 			},
 
@@ -717,7 +721,7 @@ define([
 				}
 
 				return session.setOrientation('LANDSCAPE').then(function () {
-					// TODO: learn intended response
+					return session.setOrientation('PORTRAIT');
 				});
 			},
 
@@ -808,6 +812,10 @@ define([
 			},
 
 			'#moveMouseTo': function () {
+				if (!session.capabilities.mouseEnabled) {
+					return;
+				}
+
 				return session.get(require.toUrl('./data/pointer.html')).then(function () {
 					return session.moveMouseTo(100, 12);
 				}).then(function () {
@@ -839,6 +847,10 @@ define([
 			},
 
 			'#click': function () {
+				if (!session.capabilities.mouseEnabled) {
+					return;
+				}
+
 				function click(button) {
 					return function () {
 						return session.click(button).then(function () {
@@ -867,6 +879,10 @@ define([
 			},
 
 			'#pressMouseButton, #releaseMouseButton': function () {
+				if (!session.capabilities.mouseEnabled) {
+					return;
+				}
+
 				return session.get(require.toUrl('./data/pointer.html')).then(function () {
 					return session.getElementById('a');
 				}).then(function (element) {
@@ -891,6 +907,10 @@ define([
 			},
 
 			'#doubleClick': function () {
+				if (!session.capabilities.mouseEnabled) {
+					return;
+				}
+
 				return session.get(require.toUrl('./data/pointer.html')).then(function () {
 					return session.getElementById('a');
 				}).then(function (element) {
@@ -943,14 +963,16 @@ define([
 				}).then(function (logs) {
 					assert.isArray(logs);
 
-					var log = logs[0];
-					assert.isObject(log);
-					assert.property(log, 'timestamp');
-					assert.property(log, 'level');
-					assert.property(log, 'message');
-					assert.isNumber(log.timestamp);
-					assert.isString(log.level);
-					assert.isString(log.message);
+					if (logs.length) {
+						var log = logs[0];
+						assert.isObject(log);
+						assert.property(log, 'timestamp');
+						assert.property(log, 'level');
+						assert.property(log, 'message');
+						assert.isNumber(log.timestamp);
+						assert.isString(log.level);
+						assert.isString(log.message);
+					}
 				});
 			},
 

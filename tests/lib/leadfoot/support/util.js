@@ -51,7 +51,7 @@ define([
 				return oldGet.call(this, url);
 			};
 
-			return session;
+			return server._fixSessionCapabilities(session);
 		},
 
 		convertPathToUrl: function (remote, url) {
