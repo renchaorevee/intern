@@ -103,6 +103,26 @@ define([
 			};
 		}
 
+		function getScrollPosition(element) {
+			// touchScroll scrolls in device pixels; scroll position is normally in reference pixels,
+			// so get the correct device pixel location to verify that it worked properly
+			return session.execute(function (element) {
+				var dpr = window.devicePixelRatio;
+
+				if (!element) {
+					element = document.documentElement;
+					if (!element.scrollLeft && !element.scrollTop) {
+						element = document.body;
+					}
+				}
+
+				return {
+					x: element.scrollLeft * dpr,
+					y: element.scrollTop * dpr
+				};
+			}, [ element ]);
+		}
+
 		return {
 			name: 'lib/leadfoot/Session',
 
@@ -159,6 +179,13 @@ define([
 					return session.getAllWindowHandles();
 				}).then(function (handles) {
 					assert.isArray(handles);
+
+					// At least Selendroid 0.9.0 runs the browser inside a WebView wrapper; this is not really a
+					// test failure
+					if (handles[0] === 'NATIVE_APP' && handles[1]) {
+						handles.shift();
+					}
+
 					assert.lengthOf(handles, 1);
 					assert.strictEqual(handles[0], currentHandle);
 				});
@@ -819,27 +846,27 @@ define([
 				return session.get(require.toUrl('./data/pointer.html')).then(function () {
 					return session.moveMouseTo(100, 12);
 				}).then(function () {
-					return session.execute('return result.mousemove.a;');
+					return session.execute('return result.mousemove.a && result.mousemove.a[0];');
 				}).then(function (event) {
 					assert.strictEqual(event.clientX, 100);
 					assert.strictEqual(event.clientY, 12);
 					return session.moveMouseTo(100, 41);
 				}).then(function () {
-					return session.execute('return result.mousemove.b;');
+					return session.execute('return result.mousemove.b && result.mousemove.b[0];');
 				}).then(function (event) {
 					assert.strictEqual(event.clientX, 200);
 					assert.strictEqual(event.clientY, 53);
 					return session.getElementById('c');
 				}).then(function (element) {
 					return session.moveMouseTo(element).then(function () {
-						return session.execute('return result.mousemove.c;');
+						return session.execute('return result.mousemove.c && result.mousemove.c[0];');
 					}).then(function (event) {
 						assert.closeTo(event.clientX, 450, 4);
 						assert.closeTo(event.clientY, 90, 4);
 						return session.moveMouseTo(element, 2, 4);
 					});
 				}).then(function () {
-					return session.execute('return result.mousemove.c;');
+					return session.execute('return result.mousemove.c && result.mousemove.c[1];');
 				}).then(function (event) {
 					assert.closeTo(event.clientX, 352, 4);
 					assert.closeTo(event.clientY, 80, 4);
@@ -852,15 +879,16 @@ define([
 				}
 
 				function click(button) {
+					/*jshint maxlen:140 */
 					return function () {
 						return session.click(button).then(function () {
-							return session.execute('return result.click.a;');
+							return session.execute('return result.click.a && result.click.a[0];');
 						}).then(function (event) {
 							assert.strictEqual(event.button, button);
-							return session.execute('return result.mousedown.a;').then(function (mouseDownEvent) {
+							return session.execute('return result.mousedown.a && result.mousedown.a[0];').then(function (mouseDownEvent) {
 								assert.closeTo(event.timeStamp, mouseDownEvent.timeStamp, 300);
 								assert.operator(mouseDownEvent.timeStamp, '<=', event.timeStamp);
-								return session.execute('return result.mouseup.a;');
+								return session.execute('return result.mouseup.a && result.mouseup.a[0];');
 							}).then(function (mouseUpEvent) {
 								assert.closeTo(event.timeStamp, mouseUpEvent.timeStamp, 300);
 								assert.operator(mouseUpEvent.timeStamp, '<=', event.timeStamp);
@@ -901,8 +929,8 @@ define([
 				}).then(function (result) {
 					assert.isUndefined(result.mouseup.a);
 					assert.isUndefined(result.mousedown.b);
-					assert.isObject(result.mousedown.a);
-					assert.isObject(result.mouseup.b);
+					assert.lengthOf(result.mousedown.a, 1);
+					assert.lengthOf(result.mouseup.b, 1);
 				});
 			},
 
@@ -918,20 +946,158 @@ define([
 				}).then(function () {
 					return session.doubleClick();
 				}).then(function () {
-					return session.execute('return result');
+					return session.execute('return result;');
 				}).then(function (result) {
-					assert.isObject(result.mousedown.a);
-					assert.isObject(result.mouseup.a);
-					assert.isObject(result.click.a);
-					assert.isObject(result.dblclick.a);
+					assert.lengthOf(result.mousedown.a, 2);
+					assert.lengthOf(result.mouseup.a, 2);
+					assert.lengthOf(result.click.a, 2);
+					assert.lengthOf(result.dblclick.a, 1);
 
-					assert.operator(result.mousedown.a.timeStamp, '<=', result.mouseup.a.timeStamp);
-					assert.operator(result.mouseup.a.timeStamp, '<=', result.click.a.timeStamp);
-					assert.operator(result.click.a.timeStamp, '<=', result.dblclick.a.timeStamp);
+					assert.operator(result.mousedown.a[1].timeStamp, '<=', result.mouseup.a[1].timeStamp);
+					assert.operator(result.mouseup.a[1].timeStamp, '<=', result.click.a[1].timeStamp);
+					assert.operator(result.click.a[1].timeStamp, '<=', result.dblclick.a[0].timeStamp);
 				});
 			},
 
-			// TODO: Touch
+			'#tap': function () {
+				if (!session.capabilities.touchEnabled) {
+					return;
+				}
+
+				return session.get(require.toUrl('./data/pointer.html')).then(function () {
+					return session.getElementById('a');
+				}).then(function (element) {
+					return session.tap(element);
+				}).then(function () {
+					return session.execute('return result;');
+				}).then(function (result) {
+					assert.lengthOf(result.touchstart.a, 1);
+					assert.lengthOf(result.touchend.a, 1);
+
+					assert.operator(result.touchstart.a[0].timeStamp, '<=', result.touchend.a[0].timeStamp);
+				});
+			},
+
+			'#pressFinger, #releaseFinger, #moveFinger': function () {
+				if (!session.capabilities.touchEnabled) {
+					return;
+				}
+
+				return session.get(require.toUrl('./data/pointer.html')).then(function () {
+					return session.pressFinger(5, 5);
+				}).then(function () {
+					return session.moveFinger(200, 53);
+				}).then(function () {
+					return session.releaseFinger(200, 53);
+				}).then(function () {
+					return session.execute('return result;');
+				}).then(function (result) {
+					assert.isUndefined(result.touchend.a);
+					assert.isUndefined(result.touchstart.b);
+					assert.lengthOf(result.touchstart.a, 1);
+					assert.lengthOf(result.touchend.b, 1);
+				});
+			},
+
+			'#touchScroll': function () {
+				if (!session.capabilities.touchEnabled) {
+					return;
+				}
+
+				return session.get(require.toUrl('./data/scrollable.html'))
+					.then(getScrollPosition)
+					.then(function (position) {
+						assert.deepEqual(position, { x: 0, y: 0 });
+						return session.touchScroll(20, 40);
+					}).then(getScrollPosition)
+					.then(function (position) {
+						assert.deepEqual(position, { x: 20, y: 40 });
+						return session.getElementById('viewport');
+					}).then(function (viewport) {
+						// TODO: Pretty sure that Selendroid's implementation is broken,
+						// and this test is wrong, as it seems to be totally ignoring the element argument
+						return session.touchScroll(viewport, 100, 200);
+					}).then(getScrollPosition).then(function (position) {
+						assert.deepEqual(position, { x: 120, y: 240 });
+					});
+			},
+
+			'#doubleTap': function () {
+				if (!session.capabilities.touchEnabled) {
+					return;
+				}
+
+				return session.get(require.toUrl('./data/pointer.html')).then(function () {
+					return session.getElementById('a');
+				}).then(function (element) {
+					return session.doubleTap(element);
+				}).then(function () {
+					return session.execute('return result;');
+				}).then(function (result) {
+					assert.lengthOf(result.touchstart.a, 2);
+					assert.lengthOf(result.touchend.a, 2);
+				});
+			},
+
+			'#longTap': function () {
+				if (!session.capabilities.touchEnabled) {
+					return;
+				}
+
+				return session.get(require.toUrl('./data/pointer.html')).then(function () {
+					return session.getElementById('a');
+				}).then(function (element) {
+					return session.longTap(element);
+				}).then(function () {
+					return session.execute('return result;');
+				}).then(function (result) {
+					assert.lengthOf(result.touchstart.a, 1);
+					assert.lengthOf(result.touchend.a, 1);
+					assert.operator(result.touchend.a[0].timeStamp - result.touchstart.a[0].timeStamp, '>=', 500);
+				});
+			},
+
+			'#flickFinger (element)': function () {
+				if (!session.capabilities.touchEnabled) {
+					return;
+				}
+
+				return session.get(require.toUrl('./data/scrollable.html'))
+				.then(getScrollPosition)
+				.then(function (originalPosition) {
+					assert.deepEqual(originalPosition, { x: 0, y: 0 });
+					return session.getElementByTagName('body').then(function (element) {
+						return session.flickFinger(element, -100, -100, 100);
+					}).then(getScrollPosition).then(function (position) {
+						assert.operator(originalPosition.x, '<', position.x);
+						assert.operator(originalPosition.y, '<', position.y);
+					});
+				}).then(function () {
+					return session.getElementById('viewport');
+				}).then(function (element) {
+					return getScrollPosition(element).then(function (originalPosition) {
+						return session.flickFinger(element, -100, -100, 100).then(function () {
+							return getScrollPosition(element);
+						}).then(function (position) {
+							assert.operator(originalPosition.x, '<', position.x);
+							assert.operator(originalPosition.y, '<', position.y);
+						});
+					});
+				});
+			},
+
+			'#flickFinger (no element)': function () {
+				if (!session.capabilities.touchEnabled) {
+					return;
+				}
+
+				return session.get(require.toUrl('./data/scrollable.html')).then(function () {
+					return session.flickFinger(-200, -200);
+				}).then(getScrollPosition).then(function (position) {
+					assert.operator(0, '<', position.x);
+					assert.operator(0, '<', position.y);
+				});
+			},
 
 			'geolocation (#getGeolocation, #setGeolocation)': function () {
 				if (!session.capabilities.locationContextEnabled) {
