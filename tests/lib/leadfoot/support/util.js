@@ -1,9 +1,11 @@
 define([
+	'dojo/lang',
 	'dojo/Deferred',
+	'../../../../lib/leadfoot/util',
 	'../../../../lib/leadfoot/Server',
 	'../../../../lib/leadfoot/Session'
-], function (Deferred, Server, Session) {
-	return {
+], function (lang, Deferred, util, Server, Session) {
+	return lang.delegate(util, {
 		createServer: function (config) {
 			var url = 'http://';
 			if (config.accessKey) {
@@ -44,7 +46,7 @@ define([
 
 			var oldGet = session.get;
 			session.get = function (url) {
-				if (!/^(?:https?|about):/.test(url)) {
+				if (!/^(?:https?|about|data|javascript):/.test(url)) {
 					url = self.convertPathToUrl(remote, url);
 				}
 
@@ -56,14 +58,6 @@ define([
 
 		convertPathToUrl: function (remote, url) {
 			return remote.proxyUrl + url.slice(remote.proxyBasePathLength);
-		},
-
-		sleep: function (ms) {
-			var dfd = new Deferred();
-			setTimeout(function () {
-				dfd.resolve();
-			}, ms);
-			return dfd.promise;
 		}
-	};
+	});
 });
