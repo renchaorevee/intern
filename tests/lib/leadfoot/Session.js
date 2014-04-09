@@ -217,18 +217,13 @@ define([
 				});
 			},
 
-			'navigation (#refresh, #goBack, #goForward)': function () {
+			'navigation (#goBack, #goForward, #refresh)': function () {
 				var expectedUrl = util.convertPathToUrl(this.remote, require.toUrl('./data/default.html?second'));
 				var expectedBackUrl = util.convertPathToUrl(this.remote, require.toUrl('./data/default.html?first'));
 
 				return session.get(expectedBackUrl).then(function () {
 					return session.get(expectedUrl);
 				}).then(function () {
-					return session.refresh();
-				}).then(function () {
-					return session.getCurrentUrl();
-				}).then(function (currentUrl) {
-					assert.strictEqual(currentUrl, expectedUrl, 'Refreshing the page should load the same URL');
 					return session.goBack();
 				}).then(function () {
 					return session.getCurrentUrl();
@@ -239,6 +234,11 @@ define([
 					return session.getCurrentUrl();
 				}).then(function (currentUrl) {
 					assert.strictEqual(currentUrl, expectedUrl);
+					return session.refresh();
+				}).then(function () {
+					return session.getCurrentUrl();
+				}).then(function (currentUrl) {
+					assert.strictEqual(currentUrl, expectedUrl, 'Refreshing the page should load the same URL');
 				});
 			},
 
@@ -442,6 +442,10 @@ define([
 			},
 
 			'window switching (#switchToWindow, #closeCurrentWindow)': function () {
+				if (session.capabilities.brokenWindowSwitch) {
+					return;
+				}
+
 				var mainHandle;
 				return session.get(require.toUrl('./data/window.html')).then(function () {
 					return session.getCurrentWindowHandle();
@@ -520,22 +524,22 @@ define([
 			},
 
 			'cookies (#getCookies, #setCookie, #clearCookies, #deleteCookie)': function () {
-				// TODO: Test cookies with characters that require URI encoding (= ;); these seem to fail
+				// TODO: Test cookies with values that require encoding (i.e. "=", ";"); these seem to fail
 				return session.get(require.toUrl('./data/default.html')).then(function () {
-					return session.setCookie({ name: 'foo', value: '123' });
+					return session.setCookie({ name: 'foo', value: '1=3' });
 				}).then(function () {
 					return session.clearCookies();
 				}).then(function () {
 					return session.getCookies();
 				}).then(function (cookies) {
 					assert.lengthOf(cookies, 0);
-					return session.setCookie({ name: 'foo', value: '123' });
+					return session.setCookie({ name: 'foo', value: '1=3' });
 				}).then(function () {
-					return session.setCookie({ name: 'bar', value: '234' });
+					return session.setCookie({ name: 'bar', value: '2=4' });
 				}).then(function () {
-					return session.setCookie({ name: 'baz', value: '345' });
+					return session.setCookie({ name: 'baz', value: '3=5' });
 				}).then(function () {
-					return session.setCookie({ name: 'baz', value: '456' });
+					return session.setCookie({ name: 'baz', value: '4=6' });
 				}).then(function () {
 					return session.deleteCookie('bar');
 				}).then(function () {
@@ -549,9 +553,9 @@ define([
 					var bazCookie = cookies[0].name === 'baz' ? cookies[0] : cookies[1];
 
 					assert.strictEqual(bazCookie.name, 'baz');
-					assert.strictEqual(bazCookie.value, '456');
+					assert.strictEqual(bazCookie.value, '4=6');
 					assert.strictEqual(fooCookie.name, 'foo');
-					assert.strictEqual(fooCookie.value, '123');
+					assert.strictEqual(fooCookie.value, '1=3');
 					return session.clearCookies();
 				}).then(function () {
 					return session.getCookies();
@@ -1150,6 +1154,10 @@ define([
 				return session.get(require.toUrl('./data/default.html')).then(function () {
 					return session.getAvailableLogTypes();
 				}).then(function (types) {
+					if (!types.length) {
+						return [];
+					}
+
 					return session.getLogsFor(types[0]);
 				}).then(function (logs) {
 					assert.isArray(logs);

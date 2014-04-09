@@ -46,7 +46,7 @@ define([
 
 			var oldGet = session.get;
 			session.get = function (url) {
-				if (!/^(?:https?|about|data|javascript):/.test(url)) {
+				if (!/^[A-Za-z0-9+.-]+:/.test(url)) {
 					url = self.convertPathToUrl(remote, url);
 				}
 
