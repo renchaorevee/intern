@@ -465,14 +465,17 @@ define([
 				}).then(function (element) {
 					return element.getAttribute('disabled');
 				}).then(function (isDisabled) {
-					assert.isTrue(isDisabled, 'Boolean attributes should return boolean values');
+					assert.strictEqual(isDisabled, 'true', 'True boolean attributes must return string value per the spec');
 					return session.get(require.toUrl('./data/elements.html'));
 				}).then(function () {
 					return session.getElementById('c');
 				}).then(function (element) {
 					return element.getAttribute('href');
 				}).then(function (href) {
-					assert.strictEqual(href, 'default.html', 'Link href value should not be normalised');
+					return session.getCurrentUrl().then(function (baseUrl) {
+						var expected = baseUrl.slice(0, baseUrl.lastIndexOf('/') + 1) + 'default.html';
+						assert.strictEqual(href, expected, 'Link href value should be absolute');
+					});
 				});
 			},
 
@@ -535,15 +538,15 @@ define([
 
 			'#getPosition': (function () {
 				// TODO: Inside scrolled viewport
-				// TODO: Fix transforms
+				// TODO: Fix transforms for platforms without transforms
 
 				var positions = {};
-				positions.a = { x: 0, y: 0 };
-				positions.b = { x: 100, y: 322 };
+				positions.a = { x: 0, y: 2000 };
+				positions.b = { x: 100, y: 2322 };
 				positions.c = { x: 20, y: positions.b.y + 130 };
 				positions.d = { x: positions.c.x + 350, y: positions.c.y + 80 };
-				positions.e = { x: 13, y: 445 };
-				positions.f = { x: 0, y: 472 };
+				positions.e = { x: 13, y: 2445 };
+				positions.f = { x: 0, y: 2472 };
 
 				var suite = {
 					beforeEach: function () {
@@ -567,7 +570,7 @@ define([
 			})(),
 
 			'#getSize': (function () {
-				// TODO: Fix transforms
+				// TODO: Fix transforms for platforms without transforms
 
 				var documentWidth;
 				var dimensions = {};

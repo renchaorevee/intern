@@ -588,7 +588,7 @@ define([
 					return session.getPageSource();
 				}).then(function (source) {
 					assert.include(source, '<meta charset="utf-8"');
-					assert.include(source, '<title>Default</title>');
+					assert.include(source, '<title>Default &amp;');
 					assert.include(source, 'Are you kay-o?');
 				});
 			},
