@@ -597,7 +597,7 @@ define([
 				return session.get(require.toUrl('./data/default.html')).then(function () {
 					return session.getPageTitle();
 				}).then(function (pageTitle) {
-					assert.strictEqual(pageTitle, 'Default');
+					assert.strictEqual(pageTitle, 'Default & <b>default</b>');
 				});
 			},
 
@@ -627,6 +627,12 @@ define([
 						return session.getElement('partial link text', 'cute, yellow');
 					}).then(getId).then(function (id) {
 						assert.strictEqual(id, 'c');
+						return session.getElement('link text', 'What a cute backpack.');
+					}).then(getId).then(function (id) {
+						assert.strictEqual(id, 'c3');
+						return session.getElement('partial link text', 'cute backpack');
+					}).then(getId).then(function (id) {
+						assert.strictEqual(id, 'c3');
 						return session.getElement('tag name', 'span');
 					}).then(getId).then(function (id) {
 						assert.strictEqual(id, 'b3');
@@ -704,6 +710,12 @@ define([
 						return session.getElements('partial link text', 'cute, yellow');
 					}).then(getIds).then(function (ids) {
 						assert.deepEqual(ids, [ 'c', 'c2' ]);
+						return session.getElements('link text', 'What a cute backpack.');
+					}).then(getIds).then(function (ids) {
+						assert.deepEqual(ids, [ 'c3' ]);
+						return session.getElements('partial link text', 'cute backpack');
+					}).then(getIds).then(function (ids) {
+						assert.deepEqual(ids, [ 'c3' ]);
 						return session.getElements('tag name', 'span');
 					}).then(getIds).then(function (ids) {
 						assert.deepEqual(ids, [ 'b3', 'b4', 'f', 'g' ]);
@@ -762,6 +774,7 @@ define([
 			'#type': function () {
 				var formElement;
 
+				// TODO: Complex characters, tabs and arrows, copy and paste
 				return session.get(require.toUrl('./data/form.html')).then(function () {
 					return session.getElementById('input');
 				}).then(function (element) {
