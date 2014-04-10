@@ -228,6 +228,10 @@ define([
 			),
 
 			'#click': function () {
+				if (!session.capabilities.mouseEnabled) {
+					return;
+				}
+
 				return session.get(require.toUrl('./data/pointer.html')).then(function () {
 					return session.getElementById('a');
 				}).then(function (element) {
@@ -608,12 +612,6 @@ define([
 
 				// TODO: Spec: pseudo-elements?
 				return session.get(require.toUrl('./data/dimensions.html')).then(function () {
-					// Mouse needs to be moved away from the #a element in order to avoid triggering the hover
-					// pseudo-class
-					return session.getElementById('b');
-				}).then(function (element) {
-					return session.moveMouseTo(element);
-				}).then(function () {
 					return session.getElementById('a');
 				}).then(function (element) {
 					return element.getComputedStyle('backgroundColor').then(function (style) {
@@ -629,11 +627,6 @@ define([
 						// Empty string is used by necessity since this is what FirefoxDriver returns and we cannot
 						// list all possible invalid style names
 						assert.strictEqual(style, '', 'Non-existing style should not return any value');
-						return session.moveMouseTo(element);
-					}).then(function () {
-						return element.getComputedStyle('backgroundColor');
-					}).then(function (style) {
-						assert.strictEqual(style, 'rgba(255, 0, 255, 1)', 'Pseudo-selector styles should be retrieved when applicable');
 					});
 
 					// TODO: Firefox thinks these are inapplicable; see https://bugzilla.mozilla.org/show_bug.cgi?id=889091
