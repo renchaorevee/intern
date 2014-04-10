@@ -188,8 +188,8 @@ define([
 						handles.shift();
 					}
 
-					// At least ios-driver 0.6.0 April 2014 runs the browser inside a WebView wrapper; this is not
-					// really a test failure
+					// At least ios-driver 0.6.0-SNAPSHOT April 2014 runs the browser inside a WebView wrapper; this
+					// is not really a test failure
 					if (handles[1] === 'Native') {
 						handles.pop();
 					}
@@ -269,6 +269,10 @@ define([
 			},
 
 			'#execute -> element': function () {
+				if (session.capabilities.brokenExecuteElementReturn) {
+					return;
+				}
+
 				return session.get(require.toUrl('./data/scripting.html'))
 					.then(function () {
 						return session.execute(function () {
@@ -277,10 +281,17 @@ define([
 					})
 					.then(function (element) {
 						assert.property(element, 'elementId', 'Returned value should be an Element object');
+						return element.getAttribute('id');
+					}).then(function (id) {
+						assert.strictEqual(id, 'child');
 					});
 			},
 
 			'#execute -> elements': function () {
+				if (session.capabilities.brokenExecuteElementReturn) {
+					return;
+				}
+
 				return session.get(require.toUrl('./data/scripting.html'))
 					.then(function () {
 						return session.execute(function () {
@@ -291,6 +302,9 @@ define([
 						assert.isArray(elements);
 						assert.strictEqual(elements[0], 'Poo', 'Non-elements should not be converted');
 						assert.property(elements[1], 'elementId', 'Returned elements should be Element objects');
+						return elements[1].getAttribute('id');
+					}).then(function (id) {
+						assert.strictEqual(id, 'child');
 					});
 			},
 
@@ -524,7 +538,6 @@ define([
 			},
 
 			'cookies (#getCookies, #setCookie, #clearCookies, #deleteCookie)': function () {
-				// TODO: Test cookies with values that require encoding (i.e. "=", ";"); these seem to fail
 				return session.get(require.toUrl('./data/default.html')).then(function () {
 					return session.setCookie({ name: 'foo', value: '1=3' });
 				}).then(function () {
@@ -979,10 +992,14 @@ define([
 				}).then(function () {
 					return session.execute('return result;');
 				}).then(function (result) {
-					assert.lengthOf(result.mousedown.a, 2);
-					assert.lengthOf(result.mouseup.a, 2);
-					assert.lengthOf(result.click.a, 2);
-					assert.lengthOf(result.dblclick.a, 1);
+					assert.isArray(result.dblclick.a, 'dblclick should have occurred');
+					assert.isArray(result.mousedown.a, 'mousedown should have occurred');
+					assert.isArray(result.mouseup.a, 'mouseup should have occurred');
+					assert.isArray(result.click.a, 'click should have occurred');
+					assert.lengthOf(result.dblclick.a, 1, 'One dblclick should occur on double-click');
+					assert.lengthOf(result.mousedown.a, 2, 'Two mousedown should occur on double-click');
+					assert.lengthOf(result.mouseup.a, 2, 'Two mouseup should occur on double-click');
+					assert.lengthOf(result.click.a, 2, 'Two click should occur on double-click');
 
 					assert.operator(result.mousedown.a[1].timeStamp, '<=', result.mouseup.a[1].timeStamp);
 					assert.operator(result.mouseup.a[1].timeStamp, '<=', result.click.a[1].timeStamp);
@@ -1010,7 +1027,7 @@ define([
 			},
 
 			'#pressFinger, #releaseFinger, #moveFinger': function () {
-				if (!session.capabilities.touchEnabled) {
+				if (!session.capabilities.touchEnabled || session.capabilities.brokenMoveFinger) {
 					return;
 				}
 
@@ -1069,7 +1086,7 @@ define([
 			},
 
 			'#longTap': function () {
-				if (!session.capabilities.touchEnabled) {
+				if (!session.capabilities.touchEnabled || session.capabilities.brokenLongTap) {
 					return;
 				}
 
@@ -1087,7 +1104,7 @@ define([
 			},
 
 			'#flickFinger (element)': function () {
-				if (!session.capabilities.touchEnabled) {
+				if (!session.capabilities.touchEnabled || session.capabilities.brokenFlickFinger) {
 					return;
 				}
 
@@ -1116,7 +1133,7 @@ define([
 			},
 
 			'#flickFinger (no element)': function () {
-				if (!session.capabilities.touchEnabled) {
+				if (!session.capabilities.touchEnabled || session.capabilities.brokenFlickFinger) {
 					return;
 				}
 

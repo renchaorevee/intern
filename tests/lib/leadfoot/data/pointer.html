@@ -96,7 +96,8 @@ var result = {
 					screenX: event.screenX,
 					screenY: event.screenY,
 					shiftKey: event.shiftKey,
-					timeStamp: event.timeStamp
+					// Firefox has broken event.timeStamp; see https://bugzilla.mozilla.org/show_bug.cgi?id=77992
+					timeStamp: Math.abs(+new Date() - event.timeStamp) > 4000 ? +new Date() : event.timeStamp
 				});
 
 				if (event.type === 'touchstart') {

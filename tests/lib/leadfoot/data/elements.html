@@ -17,6 +17,17 @@
 
 		<button id="makeD" name="makeD" type="button">Make d in 250ms</button>
 		<button id="killE" name="makeD" type="button">Destroy e in 250ms</button>
+
+		<div id="e">
+			<span id="f">f</span>
+			<span id="g">g</span>
+		</div>
+
+		<div id="h">
+			<a href="about:blank" id="i" class="i">What a cute, red cap.</a>
+			<a href="about:blank" id="j">What a <b id="i2" class="i">cute, </b><b id="i3" class="i">red cap</b>.</a>
+		</div>
+
 		<script>
 document.getElementById('makeD').onclick = function () {
 	this.onclick = null;
@@ -27,7 +38,7 @@ document.getElementById('makeD').onclick = function () {
 		document.body.appendChild(element);
 	}, 250);
 };
-document.getElementById('makeD2').onclick = function () {
+document.getElementById('killE').onclick = function () {
 	this.onclick = null;
 	setTimeout(function () {
 		var element = document.getElementById('e');
@@ -35,10 +46,5 @@ document.getElementById('makeD2').onclick = function () {
 	}, 250);
 };
 		</script>
-
-		<div id="e">
-			<span id="f">f</span>
-			<span id="g">g</span>
-		</div>
 	</body>
 </html>
