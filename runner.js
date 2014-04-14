@@ -60,7 +60,7 @@ else {
 			throw new Error('Required option "config" not specified');
 		}
 
-		require([ args.config ], function (config) {
+		this.require([ args.config ], function (config) {
 			config = lang.deepCopy({
 				capabilities: {
 					name: args.config,
@@ -279,6 +279,11 @@ else {
 							// from within the exit event avoids this problem by allowing Node.js to decide when to
 							// terminate
 							process.exit(hasErrors ? 1 : 0);
+						});
+
+						process.on('uncaughtException', function (error) {
+							topic.publish('/error', error);
+							process.exit(1);
 						});
 
 						topic.publish('/runner/start');
