@@ -584,7 +584,7 @@ define([
 				var suite = {
 					beforeEach: function () {
 						return session.get(require.toUrl('./data/dimensions.html')).then(function () {
-							return session.execute('return document.documentElement.offsetWidth');
+							return session.execute('return document.documentElement.offsetWidth;');
 						}).then(function (width) {
 							documentWidth = width;
 						});
@@ -599,6 +599,9 @@ define([
 							}).then(function (dimensions) {
 								if (expected.width === -1) {
 									expected.width = documentWidth;
+								}
+								else if (id === 'e' && !session.capabilities.supportsCssTransforms) {
+									expected.width = expected.height = 40;
 								}
 
 								assert.deepEqual(dimensions, expected);

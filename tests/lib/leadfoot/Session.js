@@ -218,6 +218,10 @@ define([
 			},
 
 			'navigation (#goBack, #goForward, #refresh)': function () {
+				if (session.capabilities.brokenNavigation) {
+					return;
+				}
+
 				var expectedUrl = util.convertPathToUrl(this.remote, require.toUrl('./data/default.html?second'));
 				var expectedBackUrl = util.convertPathToUrl(this.remote, require.toUrl('./data/default.html?first'));
 
@@ -518,7 +522,7 @@ define([
 			},
 
 			'window positioning (#getWindowPosition, #setWindowPosition)': function () {
-				if (!session.capabilities.dynamicViewport) {
+				if (!session.capabilities.dynamicViewport || session.capabilities.brokenWindowPosition) {
 					return;
 				}
 
@@ -532,8 +536,7 @@ define([
 				}).then(function () {
 					return session.getWindowPosition();
 				}).then(function (position) {
-					assert.strictEqual(position.x, originalPosition.x + 2);
-					assert.strictEqual(position.y, originalPosition.y + 2);
+					assert.deepEqual(position, { x: originalPosition.x + 2, y: originalPosition.y + 2 });
 				});
 			},
 
@@ -545,20 +548,27 @@ define([
 				}).then(function () {
 					return session.getCookies();
 				}).then(function (cookies) {
-					assert.lengthOf(cookies, 0);
+					assert.lengthOf(cookies, 0, 'Clearing cookies should cause no cookies to exist');
 					return session.setCookie({ name: 'foo', value: '1=3' });
 				}).then(function () {
 					return session.setCookie({ name: 'bar', value: '2=4' });
 				}).then(function () {
 					return session.setCookie({ name: 'baz', value: '3=5' });
 				}).then(function () {
+					return session.getCookies();
+				}).then(function (cookies) {
+					assert.lengthOf(cookies, 3, 'Setting cookies with unique names should create new cookies');
+
 					return session.setCookie({ name: 'baz', value: '4=6' });
 				}).then(function () {
+					return session.getCookies();
+				}).then(function (cookies) {
+					assert.lengthOf(cookies, 3, 'Overwriting cookies should not cause new cookies to be created');
 					return session.deleteCookie('bar');
 				}).then(function () {
 					return session.getCookies();
 				}).then(function (cookies) {
-					assert.lengthOf(cookies, 2);
+					assert.lengthOf(cookies, 2, 'Deleting a cookie should reduce the number of cookies');
 
 					// Different browsers return cookies in different orders; some return the last modified cookie
 					// first, others return the first created cookie first
@@ -903,27 +913,27 @@ define([
 				return session.get(require.toUrl('./data/pointer.html')).then(function () {
 					return session.moveMouseTo(100, 12);
 				}).then(function () {
-					return session.execute('return result.mousemove.a && result.mousemove.a[0];');
+					return session.execute('return result.mousemove.a && result.mousemove.a[result.mousemove.a.length - 1];');
 				}).then(function (event) {
 					assert.strictEqual(event.clientX, 100);
 					assert.strictEqual(event.clientY, 12);
 					return session.moveMouseTo(100, 41);
 				}).then(function () {
-					return session.execute('return result.mousemove.b && result.mousemove.b[0];');
+					return session.execute('return result.mousemove.b && result.mousemove.b[result.mousemove.b.length - 1];');
 				}).then(function (event) {
 					assert.strictEqual(event.clientX, 200);
 					assert.strictEqual(event.clientY, 53);
 					return session.getElementById('c');
 				}).then(function (element) {
 					return session.moveMouseTo(element).then(function () {
-						return session.execute('return result.mousemove.c && result.mousemove.c[0];');
+						return session.execute('return result.mousemove.c && result.mousemove.c[result.mousemove.c.length - 1];');
 					}).then(function (event) {
 						assert.closeTo(event.clientX, 450, 4);
 						assert.closeTo(event.clientY, 90, 4);
 						return session.moveMouseTo(element, 2, 4);
 					});
 				}).then(function () {
-					return session.execute('return result.mousemove.c && result.mousemove.c[1];');
+					return session.execute('return result.mousemove.c && result.mousemove.c[result.mousemove.c.length - 1];');
 				}).then(function (event) {
 					assert.closeTo(event.clientX, 352, 4);
 					assert.closeTo(event.clientY, 80, 4);
