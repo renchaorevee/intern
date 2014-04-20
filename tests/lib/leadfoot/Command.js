@@ -46,7 +46,7 @@ define([
 						assert.isObject(element, 'Element should be provided to first callback of new Command');
 					}).getTagName()
 					.then(function (tagName) {
-						assert.deepEqual(tagName, [ 'p' ], 'Tag name of context element should be provided');
+						assert.strictEqual(tagName, 'p', 'Tag name of context element should be provided');
 					});
 			},
 
@@ -72,7 +72,7 @@ define([
 						.type('hello')
 						.getAttribute('value')
 						.then(function (value) {
-							assert.deepEqual(value, [ 'hello' ], 'Typing into a form field should put data in the field');
+							assert.strictEqual(value, 'hello', 'Typing into a form field should put data in the field');
 						});
 			}
 		};
