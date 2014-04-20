@@ -446,6 +446,11 @@ define([
 				})
 				.then(function (text) {
 					assert.strictEqual(text, 'Frame');
+
+					if (session.capabilities.scriptedParentFrameCrashesBrowser) {
+						return session.switchToFrame(null);
+					}
+
 					return session.switchToParentFrame();
 				})
 				.then(function () {

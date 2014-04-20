@@ -24,8 +24,7 @@ define([
 
 			'#getStatus': function () {
 				return server.getStatus().then(function (result) {
-					assert.strictEqual(result.status, 0, 'Server status should be OK');
-					assert.isObject(result.value, 'Server should provide an object with details about the server');
+					assert.isObject(result, 'Server should provide an object with details about the server');
 				});
 			},
 

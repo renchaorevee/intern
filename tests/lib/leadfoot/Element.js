@@ -49,6 +49,7 @@ define([
 
 	registerSuite(function () {
 		var session;
+		var resetBrowserState = true;
 
 		return {
 			name: 'lib/leadfoot/Element',
@@ -60,9 +61,11 @@ define([
 			},
 
 			beforeEach: function () {
-				return session.get('about:blank').then(function () {
-					return session.setTimeout('implicit', 0);
-				});
+				if (resetBrowserState) {
+					return session.get('about:blank').then(function () {
+						return session.setTimeout('implicit', 0);
+					});
+				}
 			},
 
 			'#toJSON': function () {
@@ -516,8 +519,12 @@ define([
 				};
 
 				var suite = {
-					beforeEach: function () {
+					setup: function () {
+						resetBrowserState = false;
 						return session.get(require.toUrl('./data/visibility.html'));
+					},
+					teardown: function () {
+						resetBrowserState = true;
 					}
 				};
 
@@ -549,8 +556,12 @@ define([
 				positions.f = { x: 0, y: 2472 };
 
 				var suite = {
-					beforeEach: function () {
+					setup: function () {
+						resetBrowserState = false;
 						return session.get(require.toUrl('./data/dimensions.html'));
+					},
+					teardown: function () {
+						resetBrowserState = true;
 					}
 				};
 
@@ -570,8 +581,6 @@ define([
 			})(),
 
 			'#getSize': (function () {
-				// TODO: Fix transforms for platforms without transforms
-
 				var documentWidth;
 				var dimensions = {};
 				dimensions.a = { width: 222, height: 222 };
@@ -582,12 +591,16 @@ define([
 				dimensions.f = { width: -1, height: 0 };
 
 				var suite = {
-					beforeEach: function () {
+					setup: function () {
+						resetBrowserState = false;
 						return session.get(require.toUrl('./data/dimensions.html')).then(function () {
-							return session.execute('return document.documentElement.offsetWidth;');
+							return session.execute('return document.body.offsetWidth;');
 						}).then(function (width) {
 							documentWidth = width;
 						});
+					},
+					teardown: function () {
+						resetBrowserState = true;
 					}
 				};
 
