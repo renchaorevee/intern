@@ -83,6 +83,28 @@ define([
 					.then(function (ids) {
 						assert.deepEqual(ids, [ 'b2', 'b1', 'b3', 'b4' ]);
 					});
+			},
+
+			'#getElements chain': function () {
+				return new Command(session).get(require.toUrl('./data/elements.html'))
+					.getElementById('c')
+						.getElementsByClassName('b')
+							.getAttribute('id')
+							.then(function (ids) {
+								assert.deepEqual(ids, [ 'b3', 'b4' ]);
+							})
+							.getElementsByClassName('a')
+								.then(function (elements) {
+									assert.lengthOf(elements, 0);
+								})
+							.end()
+						.end()
+					.end()
+					.getElementsByClassName('b')
+					.getAttribute('id')
+					.then(function (ids) {
+						assert.deepEqual(ids, [ 'b2', 'b1', 'b3', 'b4' ]);
+					});
 			}
 		};
 	});
