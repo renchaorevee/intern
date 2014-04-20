@@ -74,6 +74,15 @@ define([
 						.then(function (value) {
 							assert.strictEqual(value, 'hello', 'Typing into a form field should put data in the field');
 						});
+			},
+
+			'#getElements': function () {
+				return new Command(session).get(require.toUrl('./data/elements.html'))
+					.getElementsByClassName('b')
+					.getAttribute('id')
+					.then(function (ids) {
+						assert.deepEqual(ids, [ 'b2', 'b1', 'b3', 'b4' ]);
+					});
 			}
 		};
 	});
