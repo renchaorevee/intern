@@ -69,6 +69,31 @@ define([
 		},
 
 		/**
+		 * Traverse and print the set of registered tests
+		 */
+		listTests: function (suite) {
+			var i, tests, test;
+
+			if (!suite) {
+				for (i = 0; i < this.suites.length; i++) {
+					this.listTests(this.suites[i]);
+				}
+			}
+			else {
+				tests = suite.tests;
+				for (i = 0; i < tests.length; i++) {
+					test = tests[i];
+					if (test.tests) {
+						this.listTests(test);
+					}
+					else {
+						console.log(test.id);
+					}
+				}
+			}
+		},
+
+		/**
 		 * AMD plugin API interface for easy loading of test interfaces.
 		 */
 		load: function (id, parentRequire, callback) {

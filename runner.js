@@ -103,6 +103,21 @@ else {
 
 			this.require(config.loader);
 
+			if (args.listTests) {
+				main.suites.push(new Suite({ name: 'main' }));
+				require((config.suites || []), function () {
+					console.log('Unit tests:');
+					main.listTests();
+
+					main.suites = [new Suite({ name: 'main' })];
+					require((config.functionalSuites || []), function () {
+						console.log('\nFunctional tests:');
+						main.listTests();
+					});
+				});
+				return;
+			}
+
 			if (!args.reporters) {
 				if (config.reporters) {
 					args.reporters = config.reporters;
