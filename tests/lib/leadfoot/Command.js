@@ -26,14 +26,42 @@ define([
 			},
 
 			'initialisation': function () {
-				var command = new Command(session, null, function () {
-					return util.createPromise('a');
+				var dfd = this.async();
+				var parent = new Command(session, function (setContext) {
+					setContext('foo');
+					return util.createPromise('bar');
 				});
 
-				return command.then(function (returnValue) {
-					assert.strictEqual(this, command, 'The `this` object in callbacks should be the Command object');
-					assert.deepEqual(command.context, [ 'a' ], 'The context of the Command should be set by the initialiser');
-					assert.deepEqual(returnValue, 'a', 'The return value of the initialiser should be exposed to the first callback');
+				var expectedContext = [ 'foo' ];
+				expectedContext.isSingle = true;
+
+				var command = parent.then(function (returnValue) {
+					var self = this;
+					// setTimeout is necessary because underlying Promise implementation resolves same-turn and so
+					// `command` is still not defined when this callback executes
+					setTimeout(dfd.callback(function () {
+						assert.strictEqual(self, command, 'The `this` object in callbacks should be the Command object');
+						assert.deepEqual(command.context, expectedContext, 'The context of the Command should be set by the initialiser');
+						assert.deepEqual(returnValue, 'bar', 'The return value of the initialiser should be exposed to the first callback');
+					}), 0);
+				});
+
+				return dfd.promise;
+			},
+
+			'error handling': function () {
+				return new Command(session, function () {
+					throw new Error('broken');
+				}).then(function () {
+					throw new Error('Error thrown in initialiser should reject the Command');
+				}, function (error) {
+					assert.strictEqual(error.message, 'broken');
+					error.message += ' 2';
+					throw error;
+				}).then(function () {
+					throw new Error('Error thrown in parent Command should reject child Command');
+				}, function (error) {
+					assert.strictEqual(error.message, 'broken 2');
 				});
 			},
 
@@ -101,10 +129,38 @@ define([
 						.end()
 					.end()
 					.getElementsByClassName('b')
-					.getAttribute('id')
-					.then(function (ids) {
-						assert.deepEqual(ids, [ 'b2', 'b1', 'b3', 'b4' ]);
-					});
+						.getAttribute('id')
+						.then(function (ids) {
+							assert.deepEqual(ids, [ 'b2', 'b1', 'b3', 'b4' ]);
+						});
+			},
+
+			'#getElements + #getElements': function () {
+				return new Command(session).get(require.toUrl('./data/elements.html'))
+					.getElementsByTagName('div')
+						.getElementsByCssSelector('span, a')
+							.getAttribute('id')
+							.then(function (ids) {
+								assert.deepEqual(ids, [ 'f', 'g', 'j', 'i1', 'k', 'zz' ]);
+							});
+			},
+
+			'creates context': function () {
+				var inputElement;
+				return new Command(session).get(require.toUrl('./data/form.html'))
+					.getElementByTagName('input')
+						.then(function () {
+							inputElement = this.context[0];
+						})
+						.click()
+						.end()
+					.getActiveElement()
+						.then(function () {
+							return inputElement.equals(this.context[0]);
+						})
+						.then(function (isEqual) {
+							assert.isTrue(isEqual);
+						});
 			}
 		};
 	});
