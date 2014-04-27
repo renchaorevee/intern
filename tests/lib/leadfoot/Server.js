@@ -2,8 +2,9 @@ define([
 	'intern!object',
 	'intern/chai!assert',
 	'intern/main',
-	'./support/util'
-], function (registerSuite, assert, intern, util) {
+	'./support/util',
+	'../../../lib/Session'
+], function (registerSuite, assert, intern, util, Session) {
 	registerSuite(function () {
 		var server;
 
@@ -78,6 +79,35 @@ define([
 
 					teardown: function () {
 						return server.deleteSession(session.sessionId);
+					}
+				};
+			})(),
+
+			'.sessionConstructor': (function () {
+				function CustomSession() {
+					Session.apply(this, arguments);
+				}
+				CustomSession.prototype = Object.create(Session.prototype);
+				CustomSession.prototype.constructor = CustomSession;
+				CustomSession.prototype.isCustomSession = true;
+
+				var desiredCapabilities = {
+					browserName: 'firefox'
+				};
+
+				return {
+					setup: function () {
+						server.sessionConstructor = CustomSession;
+					},
+
+					'': function () {
+						return server.createSession(desiredCapabilities).then(function (session) {
+							assert.isTrue(session.isCustomSession);
+						});
+					},
+
+					teardown: function () {
+						server.sessionConstructor = Session;
 					}
 				};
 			})()
