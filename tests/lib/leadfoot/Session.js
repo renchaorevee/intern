@@ -558,6 +558,10 @@ define([
 			},
 
 			'cookies (#getCookies, #setCookie, #clearCookies, #deleteCookie)': function () {
+				if (session.capabilities.brokenCookies) {
+					return;
+				}
+
 				return session.get(require.toUrl('./data/default.html')).then(function () {
 					return session.setCookie({ name: 'foo', value: '1=3' });
 				}).then(function () {
@@ -686,7 +690,7 @@ define([
 					}).then(function () {
 						throw new Error('Requesting non-existing element should throw error');
 					}, function () {
-						assert.closeTo(Date.now(), startTime + 2000, 500,
+						assert.operator(Date.now(), '>=', startTime + 2000,
 							'Driver should wait for implicit timeout before continuing');
 						return session.getElement('id', 'makeD');
 					}).then(function (element) {

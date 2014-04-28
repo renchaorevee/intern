@@ -134,7 +134,7 @@ define([
 						return element.getElement('id', 'd').then(function () {
 							throw new Error('Requesting non-existing element should throw error');
 						}, function () {
-							assert.closeTo(Date.now(), startTime + 2000, 500,
+							assert.operator(Date.now(), '>=', startTime + 2000,
 								'Driver should wait for implicit timeout before continuing');
 							return session.getElement('id', 'makeD');
 						}).then(function (makeElement) {
@@ -264,7 +264,7 @@ define([
 					}).then(function () {
 						return session.getCurrentUrl();
 					}).then(function (url) {
-						expectedUrl += '?a=hello';
+						expectedUrl += '?a=hello&go=submit2';
 						assert.strictEqual(url, expectedUrl);
 					});
 				});
