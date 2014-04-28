@@ -55,7 +55,11 @@ define({
 	suites: [ 'intern-selftest/tests/all' ],
 
 	// Functional test suite(s) to run in each browser once non-functional tests are completed
-	functionalSuites: [ 'intern-selftest/tests/lib/leadfoot/Session', 'intern-selftest/tests/lib/leadfoot/Element' ],
+	functionalSuites: [
+		'intern-selftest/tests/lib/leadfoot/Session',
+		'intern-selftest/tests/lib/leadfoot/Element',
+		'intern-selftest/tests/lib/leadfoot/Command'
+	],
 
 	// A regular expression matching URLs to files that should not be included in code coverage analysis
 	excludeInstrumentation: /^(?:tests|node_modules)\//,

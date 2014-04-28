@@ -5,6 +5,7 @@ define([
 	'./support/util',
 	'../../../lib/Session'
 ], function (registerSuite, assert, intern, util, Session) {
+	// TODO: Figure out the best way to execute this test
 	registerSuite(function () {
 		var server;
 
