@@ -331,6 +331,18 @@ define([
 					});
 			},
 
+			'#execute non-array args': function () {
+				assert.throws(function () {
+					session.execute('return window;', 'oops');
+				}, /Arguments passed to execute must be an array/);
+			},
+
+			'#executeAsync non-array args': function () {
+				assert.throws(function () {
+					session.executeAsync('return window;', 'oops');
+				}, /Arguments passed to executeAsync must be an array/);
+			},
+
 			'#executeAsync': (function () {
 				var originalTimeout;
 
@@ -868,6 +880,29 @@ define([
 				});
 			},
 
+			'#typeInPrompt array': function () {
+				if (!session.capabilities.handlesAlerts) {
+					return;
+				}
+
+				return session.get(require.toUrl('./data/prompts.html')).then(function () {
+					return session.getElementById('prompt');
+				}).then(function (element) {
+					return element.click();
+				}).then(function () {
+					return session.getAlertText();
+				}).then(function (alertText) {
+					assert.strictEqual(alertText, 'The monkey... got charred. Is he all right?');
+					return session.typeInPrompt([ 'y', 'e', 's' ]);
+				}).then(function () {
+					return session.acceptAlert();
+				}).then(function () {
+					return session.execute('return result.prompt;');
+				}).then(function (result) {
+					assert.strictEqual(result, 'yes');
+				});
+			},
+
 			'#acceptAlert': function () {
 				if (!session.capabilities.handlesAlerts) {
 					return;
@@ -911,6 +946,7 @@ define([
 			},
 
 			'#moveMouseTo': function () {
+				/*jshint maxlen:140 */
 				if (!session.capabilities.mouseEnabled) {
 					return;
 				}

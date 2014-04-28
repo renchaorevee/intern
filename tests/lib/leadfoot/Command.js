@@ -1,12 +1,13 @@
 define([
 	'intern!object',
 	'intern/chai!assert',
+	'dojo/Deferred',
 	'dojo/promise/all',
 	'./support/util',
 	'../../../lib/leadfoot/strategies',
 	'../../../lib/leadfoot/Command',
 	'require'
-], function (registerSuite, assert, whenAll, util, strategies, Command, require) {
+], function (registerSuite, assert, Deferred, whenAll, util, strategies, Command, require) {
 	/*jshint maxlen:140 */
 	registerSuite(function () {
 		var session;
@@ -25,7 +26,56 @@ define([
 				});
 			},
 
+			'error handling': {
+				'initialiser throws': function () {
+					return new Command(session, function () {
+						throw new Error('broken');
+					}).then(function () {
+						throw new Error('Error thrown in initialiser should reject the Command');
+					}, function (error) {
+						assert.strictEqual(error.message, 'broken');
+						assert.include(error.stack, 'tests/lib/leadfoot/Command.js:31:13', 'Stack trace should point back to the error');
+						error.message += ' 2';
+						throw error;
+					}).then(function () {
+						throw new Error('Error thrown in parent Command should reject child Command');
+					}, function (error) {
+						assert.strictEqual(error.message, 'broken 2');
+					});
+				},
+
+				'invalid async command': function () {
+					var command = new Command(session).sleep(100);
+					Command.addSessionMethod(command, 'invalid', function () {
+						var dfd = new Deferred();
+						// use timeout to ensure the stack is unrolled before failure since Dojo promises do not ensure
+						// that callbacks always execute next-tick
+						setTimeout(function () {
+							dfd.reject(new Error('Invalid call'));
+						}, 0);
+						return dfd.promise;
+					});
+
+					return command
+						.invalid()
+						.then(function () {
+							throw new Error('Invalid command should have thrown error');
+						}, function (error) {
+							assert.strictEqual(error.message, 'Invalid call');
+							assert.include(error.stack.slice(0, error.stack.indexOf('\n')), error.message,
+								'Original error message should be provided on the first line of the stack trace');
+							assert.include(error.stack, 'tests/lib/leadfoot/Command.js:60:8',
+								'Stack trace should point back to the async method call that eventually threw the error');
+						});
+				}
+			},
+
 			'initialisation': function () {
+				assert.throws(function () {
+					/*jshint nonew:false */
+					new Command();
+				}, /A parent Command or Session must be provided to a new Command/);
+
 				var dfd = this.async();
 				var parent = new Command(session, function (setContext) {
 					setContext('foo');
@@ -49,36 +99,7 @@ define([
 				return dfd.promise;
 			},
 
-			'error handling': function () {
-				return new Command(session, function () {
-					throw new Error('broken');
-				}).then(function () {
-					throw new Error('Error thrown in initialiser should reject the Command');
-				}, function (error) {
-					assert.strictEqual(error.message, 'broken');
-					error.message += ' 2';
-					throw error;
-				}).then(function () {
-					throw new Error('Error thrown in parent Command should reject child Command');
-				}, function (error) {
-					assert.strictEqual(error.message, 'broken 2');
-				});
-			},
-
-			'child command': function () {
-				var parent = new Command(session).get(require.toUrl('./data/default.html'));
-				var child = parent.getElementByTagName('p');
-
-				return child.then(function (element) {
-						assert.notStrictEqual(child, parent, 'Getting an element should cause a new Command to be created');
-						assert.isObject(element, 'Element should be provided to first callback of new Command');
-					}).getTagName()
-					.then(function (tagName) {
-						assert.strictEqual(tagName, 'p', 'Tag name of context element should be provided');
-					});
-			},
-
-			'chain': function () {
+			'basic chaining': function () {
 				var command = new Command(session);
 				return command.get(require.toUrl('./data/default.html'))
 					.getPageTitle()
@@ -92,7 +113,20 @@ define([
 					});
 			},
 
-			'keys': function () {
+			'child is a separate command': function () {
+				var parent = new Command(session).get(require.toUrl('./data/default.html'));
+				var child = parent.getElementByTagName('p');
+
+				return child.then(function (element) {
+						assert.notStrictEqual(child, parent, 'Getting an element should cause a new Command to be created');
+						assert.isObject(element, 'Element should be provided to first callback of new Command');
+					}).getTagName()
+					.then(function (tagName) {
+						assert.strictEqual(tagName, 'p', 'Tag name of context element should be provided');
+					});
+			},
+
+			'basic form interaction': function () {
 				var command = new Command(session);
 				return command.get(require.toUrl('./data/form.html'))
 					.getElementById('input')
@@ -125,8 +159,7 @@ define([
 								.then(function (elements) {
 									assert.lengthOf(elements, 0);
 								})
-							.end()
-						.end()
+						.end(2)
 					.end()
 					.getElementsByClassName('b')
 						.getAttribute('id')
@@ -145,22 +178,142 @@ define([
 							});
 			},
 
-			'creates context': function () {
-				var inputElement;
-				return new Command(session).get(require.toUrl('./data/form.html'))
-					.getElementByTagName('input')
-						.then(function () {
-							inputElement = this.context[0];
-						})
-						.click()
-						.end()
-					.getActiveElement()
-						.then(function () {
-							return inputElement.equals(this.context[0]);
-						})
-						.then(function (isEqual) {
-							assert.isTrue(isEqual);
-						});
+			'#sleep': function () {
+				var startTime = Date.now();
+				return new Command(session)
+					.sleep(2000)
+					.then(function () {
+						assert.closeTo(Date.now() - startTime, 2000, 200,
+							'Sleep should prevent next command from executing for the specified amount of time');
+					});
+			},
+
+			'#end beyond the top of the command list': function () {
+				return new Command(session, function (setContext) { setContext([ 'a' ]); })
+					.end(20)
+					.then(function () {
+						assert.deepEqual(this.context, [ 'a' ], 'Calling #end when there is nowhere else to go should be a no-op');
+					});
+			},
+
+			'#otherwise': function () {
+				var command = new Command(session);
+				var callback;
+				var errback;
+				var expectedErrback = function () {};
+				command.then = function () {
+					callback = arguments[0];
+					errback = arguments[1];
+					return 'thenCalled';
+				};
+				var result = command.otherwise(expectedErrback);
+				assert.strictEqual(result, 'thenCalled');
+				assert.isNull(callback);
+				assert.strictEqual(errback, expectedErrback);
+			},
+
+			'#always': function () {
+				var command = new Command(session);
+				var callback;
+				var errback;
+				var expected = function () {};
+				command.then = function () {
+					callback = arguments[0];
+					errback = arguments[1];
+					return 'thenCalled';
+				};
+				var result = command.always(expected);
+				assert.strictEqual(result, 'thenCalled');
+				assert.strictEqual(callback, expected);
+				assert.strictEqual(errback, expected);
+			},
+
+			'#cancel': function () {
+				var command = new Command(session);
+				var sleepCommand = command.sleep(5000);
+				sleepCommand.cancel();
+
+				return sleepCommand.then(function () {
+					throw new Error('Sleep command should have been cancelled');
+				}, function (error) {
+					assert.strictEqual(error.name, 'CancelError');
+				});
+			},
+
+			'session createsContext': function () {
+				var command = new Command(session, function (setContext) {
+					setContext('a');
+				});
+
+				Command.addSessionMethod(command, 'newContext', util.forCommand(function () {
+					return util.createPromise('b');
+				}, { createsContext: true }));
+
+				return command.newContext().then(function () {
+					var expected = [ 'b' ];
+					expected.isSingle = true;
+
+					assert.deepEqual(this.context, expected,
+						'Function that returns a value that has been annotated with createsContext should generate a new context');
+				});
+			},
+
+			'element createsContext': function () {
+				var command = new Command(session, function (setContext) {
+					setContext({
+						elementId: 'farts',
+						newContext: util.forCommand(function () {
+							return util.createPromise('b');
+						}, { createsContext: true })
+					});
+				});
+
+				Command.addElementMethod(command, 'newContext');
+
+				return command.newContext().then(function () {
+					var expected = [ 'b' ];
+					expected.isSingle = true;
+
+					assert.deepEqual(this.context, expected,
+						'Function that returns a value that has been annotated with createsContext should generate a new context');
+				});
+			},
+
+			'session usesElement single': function () {
+				var command = new Command(session, function (setContext) {
+					setContext('a');
+				});
+
+				Command.addSessionMethod(command, 'useElement', util.forCommand(function (context, arg) {
+					assert.strictEqual(context, 'a',
+						'Context object should be passed as first argument to function annotated with usesElement');
+					assert.strictEqual(arg, 'arg1',
+						'Arguments should be passed after the context');
+				}, { usesElement: true }));
+
+				return command.useElement('arg1');
+			},
+
+			'session usesElement multiple': function () {
+				var command = new Command(session, function (setContext) {
+					setContext([ 'a', 'b' ]);
+				});
+
+				var expected = [
+					[ 'a', 'arg1' ],
+					[ 'b', 'arg1' ]
+				];
+
+				Command.addSessionMethod(command, 'useElement', util.forCommand(function (context, arg) {
+					var _expected = expected.shift();
+
+					assert.strictEqual(context, _expected[0],
+						'Context object should be passed as first argument to function annotated with usesElement');
+					assert.strictEqual(arg, _expected[1],
+						'Arguments should be passed after the context');
+				}, { usesElement: true }));
+
+				return command.useElement('arg1');
 			}
 		};
 	});
