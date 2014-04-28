@@ -316,15 +316,17 @@ else {
 						main.run().always(function () {
 							/*global __internCoverage */
 							typeof __internCoverage !== 'undefined' &&
-								topic.publish('/coverage', args.sessionId, __internCoverage);
+								topic.publish('/coverage', '', __internCoverage);
 							topic.publish('/runner/end');
 							connectProcess && connectProcess.close();
 							proxy.close();
 							reporterManager.clear();
+						}).otherwise(function (error) {
+							console.error(error.stack || error);
 						});
 					});
 				}, function (error) {
-					console.error(error);
+					console.error(error.stack || error);
 					proxy.close();
 				});
 			});
