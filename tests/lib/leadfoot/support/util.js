@@ -7,17 +7,16 @@ define([
 ], function (lang, Deferred, util, Server, Session) {
 	return lang.delegate(util, {
 		createServer: function (config) {
-			var url = 'http://';
-			if (config.accessKey) {
-				url += encodeURIComponent(config.username) + ':' + encodeURIComponent(config.accessKey) + '@';
-			}
-			url += config.host + ':' + config.port + '/wd/hub';
-
-			return new Server(url);
+			return new Server(config);
 		},
 
 		createServerFromRemote: function (remote) {
-			if (remote._wd) {
+			// Intern 2
+			if (remote.session && remote.session.server) {
+				return new Server(remote.session.server.url);
+			}
+			// Intern 1
+			else if (remote._wd) {
 				return new Server(remote._wd.configUrl.href);
 			}
 
@@ -25,39 +24,53 @@ define([
 		},
 
 		createSessionFromRemote: function (remote) {
+			var self = this;
 			var server = this.createServerFromRemote(remote);
-			var capabilities = remote.capabilities;
 
-			// capabilities on Intern 1.5- remote objects are exposed through the environment type object,
-			// but that object contains some additional features that causes a deepEqual comparison to fail;
-			// extracting its own properties onto a plain object ensures that capabilities comparison passes,
-			// assuming the server is not defective
-			if (!capabilities && remote.environmentType) {
-				capabilities = {};
+			function fixGet(session) {
+				var oldGet = session.get;
+				session.get = function (url) {
+					if (!/^[A-Za-z0-9+.-]+:/.test(url)) {
+						url = self.convertPathToUrl(remote, url);
+					}
+
+					return oldGet.call(this, url);
+				};
+			}
+
+			// Intern 2
+			if (remote.session) {
+				session = new Session(remote.session.sessionId, server, remote.session.capabilities);
+				fixGet(session);
+				return this.createPromise(session);
+			}
+			// Intern 1
+			else if (remote.sessionId && remote.environmentType) {
+				// capabilities on Intern 1.6- remote objects are exposed through the environment type object,
+				// but that object contains some additional features that causes a deepEqual comparison to fail;
+				// extracting its own properties onto a plain object ensures that capabilities comparison passes,
+				// assuming the server is not defective
+				var capabilities = {};
 				for (var k in remote.environmentType) {
 					if (remote.environmentType.hasOwnProperty(k)) {
 						capabilities[k] = remote.environmentType[k];
 					}
 				}
+
+				var session = new Session(remote.sessionId, server, capabilities);
+				fixGet(session);
+				return server._fixSessionCapabilities(session);
 			}
 
-			var session = new Session(remote.sessionId, server, capabilities);
-			var self = this;
-
-			var oldGet = session.get;
-			session.get = function (url) {
-				if (!/^[A-Za-z0-9+.-]+:/.test(url)) {
-					url = self.convertPathToUrl(remote, url);
-				}
-
-				return oldGet.call(this, url);
-			};
-
-			return server._fixSessionCapabilities(session);
+			throw new Error('Unsupported remote');
 		},
 
-		convertPathToUrl: function (remote, url) {
-			return remote.proxyUrl + url.slice(remote.proxyBasePathLength);
+		convertPathToUrl: function (session, url) {
+			if (session.session) {
+				session = session.session;
+			}
+
+			return session.proxyUrl + url.slice(session.proxyBasePathLength);
 		}
 	});
 });

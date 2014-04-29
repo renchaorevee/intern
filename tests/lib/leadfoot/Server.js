@@ -3,8 +3,9 @@ define([
 	'intern/chai!assert',
 	'intern/main',
 	'./support/util',
+	'../../../lib/Server',
 	'../../../lib/Session'
-], function (registerSuite, assert, intern, util, Session) {
+], function (registerSuite, assert, intern, util, Server, Session) {
 	// TODO: Figure out the best way to execute this test
 	registerSuite(function () {
 		var server;
@@ -13,7 +14,7 @@ define([
 			name: 'lib/leadfoot/Server',
 
 			setup: function () {
-				server = util.createServer(intern.config.webdriver);
+				server = new Server(intern.config.webdriver);
 			},
 
 			'error handling': function () {
