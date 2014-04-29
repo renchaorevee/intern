@@ -1,0 +1,5 @@
+.gitignore
+.jsdoc.conf
+tests
+!tests/example.intern.js
+.travis.yml
