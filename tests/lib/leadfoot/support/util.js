@@ -59,7 +59,7 @@ define([
 
 				var session = new Session(remote.sessionId, server, capabilities);
 				fixGet(session);
-				return server._fixSessionCapabilities(session);
+				return server._fillCapabilities(session);
 			}
 
 			throw new Error('Unsupported remote');

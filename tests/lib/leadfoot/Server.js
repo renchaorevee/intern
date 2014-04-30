@@ -2,11 +2,8 @@ define([
 	'intern!object',
 	'intern/chai!assert',
 	'intern/main',
-	'./support/util',
-	'../../../lib/Server',
-	'../../../lib/Session'
-], function (registerSuite, assert, intern, util, Server, Session) {
-	// TODO: Figure out the best way to execute this test
+	'./support/util'
+], function (registerSuite, assert, intern, util) {
 	registerSuite(function () {
 		var server;
 
@@ -14,7 +11,7 @@ define([
 			name: 'lib/leadfoot/Server',
 
 			setup: function () {
-				server = new Server(intern.config.webdriver);
+				server = util.createServerFromRemote(this.remote);
 			},
 
 			'error handling': function () {
@@ -31,7 +28,7 @@ define([
 				});
 			},
 
-			'session handling': (function () {
+/*			'session handling': (function () {
 				var desiredCapabilities = {
 					browserName: 'firefox'
 				};
@@ -83,33 +80,28 @@ define([
 						return server.deleteSession(session.sessionId);
 					}
 				};
-			})(),
+			})(),*/
 
 			'.sessionConstructor': (function () {
-				function CustomSession() {
-					Session.apply(this, arguments);
-				}
-				CustomSession.prototype = Object.create(Session.prototype);
-				CustomSession.prototype.constructor = CustomSession;
-				CustomSession.prototype.isCustomSession = true;
-
-				var desiredCapabilities = {
-					browserName: 'firefox'
-				};
+				function CustomSession() {}
+				var oldCtor;
 
 				return {
 					setup: function () {
+						oldCtor = server.sessionConstructor;
 						server.sessionConstructor = CustomSession;
+						server.fixSessionCapabilities = false;
 					},
 
 					'': function () {
-						return server.createSession(desiredCapabilities).then(function (session) {
-							assert.isTrue(session.isCustomSession);
+						return server.createSession({}).then(function (session) {
+							assert.instanceOf(session, CustomSession);
 						});
 					},
 
 					teardown: function () {
-						server.sessionConstructor = Session;
+						server.sessionConstructor = oldCtor;
+						server.fixSessionCapabilities = true;
 					}
 				};
 			})()
