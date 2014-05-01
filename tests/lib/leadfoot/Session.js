@@ -774,7 +774,28 @@ define([
 				strategies.filter(function (strategy) { return strategy !== 'id'; })
 			),
 
-			// TODO: waitForDeletedElement
+			'#waitForDeletedElement': function () {
+				var startDate;
+
+				return session.get(require.toUrl('./data/elements.html')).then(function () {
+					// Verifies element to be deleted exists at the start of the test
+					return session.getElementById('e');
+				}).then(function () {
+					return session.setImplicitTimeout(5000);
+				}).then(function () {
+					return session.getElementById('killE');
+				}).then(function (element) {
+					startDate = Date.now();
+					return element.click();
+				}).then(function () {
+					return session.waitForDeletedElement('id', 'e');
+				}).then(function () {
+					var timeSpent = Date.now() - startDate;
+					assert.operator(timeSpent, '>', 250, 'Waiting for deleted element should not return immediately');
+					assert.operator(timeSpent, '<', 4500,
+						'Driver should not wait until end of implicit timeout once element is gone');
+				});
+			},
 
 			'#waitForDeletedElement convenience methods': createStubbedSuite(
 				'waitForDeletedElement',
