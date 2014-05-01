@@ -85,23 +85,33 @@ define([
 			'.sessionConstructor': (function () {
 				function CustomSession() {}
 				var oldCtor;
+				var oldPost;
+				var mockCapabilities = {
+					isMockCapabilities: true
+				};
 
 				return {
 					setup: function () {
 						oldCtor = server.sessionConstructor;
+						oldPost = server._post;
 						server.sessionConstructor = CustomSession;
 						server.fixSessionCapabilities = false;
+						server._post = function () {
+							return util.createPromise(mockCapabilities);
+						};
 					},
 
 					'': function () {
 						return server.createSession({}).then(function (session) {
 							assert.instanceOf(session, CustomSession);
+							assert.isTrue(session.capabilities.isMockCapabilities);
 						});
 					},
 
 					teardown: function () {
 						server.sessionConstructor = oldCtor;
 						server.fixSessionCapabilities = true;
+						server._post = oldPost;
 					}
 				};
 			})()
