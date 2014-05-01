@@ -23,7 +23,8 @@ define([
 			throw new Error('Unsupported remote');
 		},
 
-		createSessionFromRemote: function (remote) {
+		createSessionFromRemote: function (remote, SessionCtor, shouldFixGet) {
+			SessionCtor = SessionCtor || Session;
 			var self = this;
 			var server = this.createServerFromRemote(remote);
 
@@ -40,7 +41,7 @@ define([
 
 			// Intern 2
 			if (remote.session) {
-				session = new Session(remote.session.sessionId, server, remote.session.capabilities);
+				session = new SessionCtor(remote.session.sessionId, server, remote.session.capabilities);
 				fixGet(session);
 				return this.createPromise(session);
 			}
@@ -57,8 +58,8 @@ define([
 					}
 				}
 
-				var session = new Session(remote.sessionId, server, capabilities);
-				fixGet(session);
+				var session = new SessionCtor(remote.sessionId, server, capabilities);
+				shouldFixGet !== false && fixGet(session);
 				return server._fillCapabilities(session);
 			}
 
