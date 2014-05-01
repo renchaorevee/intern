@@ -3,8 +3,8 @@ define([
 	'intern/chai!assert',
 	'dojo/promise/all',
 	'./support/util',
-	'../../../lib/leadfoot/strategies',
-	'../../../lib/leadfoot/Element',
+	'../../../../lib/leadfoot/strategies',
+	'../../../../lib/leadfoot/Element',
 	'require'
 ], function (registerSuite, assert, whenAll, util, strategies, Element, require) {
 	function createStubbedSuite(stubbedMethodName, testMethodName, placeholders, firstArguments) {

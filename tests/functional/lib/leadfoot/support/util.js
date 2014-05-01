@@ -1,9 +1,9 @@
 define([
 	'dojo/lang',
 	'dojo/Deferred',
-	'../../../../lib/leadfoot/util',
-	'../../../../lib/leadfoot/Server',
-	'../../../../lib/leadfoot/Session'
+	'../../../../../lib/leadfoot/util',
+	'../../../../../lib/leadfoot/Server',
+	'../../../../../lib/leadfoot/Session'
 ], function (lang, Deferred, util, Server, Session) {
 	return lang.delegate(util, {
 		createServer: function (config) {

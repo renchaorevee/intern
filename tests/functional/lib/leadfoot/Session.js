@@ -3,7 +3,7 @@ define([
 	'intern/chai!assert',
 	'dojo/promise/all',
 	'./support/util',
-	'../../../lib/leadfoot/strategies',
+	'../../../../lib/leadfoot/strategies',
 	'require'
 ], function (registerSuite, assert, whenAll, util, strategies, require) {
 	registerSuite(function () {

@@ -4,8 +4,8 @@ define([
 	'dojo/Deferred',
 	'dojo/promise/all',
 	'./support/util',
-	'../../../lib/leadfoot/strategies',
-	'../../../lib/leadfoot/Command',
+	'../../../../lib/leadfoot/strategies',
+	'../../../../lib/leadfoot/Command',
 	'require'
 ], function (registerSuite, assert, Deferred, whenAll, util, strategies, Command, require) {
 	/*jshint maxlen:140 */
