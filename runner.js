@@ -68,6 +68,8 @@ else {
 			throw new Error('Required option "config" not specified');
 		}
 
+		main.mode = 'runner';
+
 		this.require([ args.config ], function (config) {
 			config = lang.deepCopy({
 				capabilities: {
