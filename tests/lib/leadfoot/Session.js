@@ -792,8 +792,27 @@ define([
 				}).then(function () {
 					var timeSpent = Date.now() - startDate;
 					assert.operator(timeSpent, '>', 250, 'Waiting for deleted element should not return immediately');
-					assert.operator(timeSpent, '<', 4500,
+					assert.operator(timeSpent, '<', 5000,
 						'Driver should not wait until end of implicit timeout once element is gone');
+				});
+			},
+
+			'#waitForDeletedElement -> timeout': function () {
+				var startDate;
+
+				return session.get(require.toUrl('./data/elements.html')).then(function () {
+					// Verifies element to be deleted exists at the start of the test
+					return session.getElementById('e');
+				}).then(function () {
+					return session.setImplicitTimeout(200);
+				}).then(function () {
+					startDate = Date.now();
+					return session.waitForDeletedElement('id', 'e');
+				}).then(function () {
+					throw new Error('Waiting for deleted element that never disappears should time out');
+				}, function () {
+					assert.operator(Date.now() - startDate, '>', 250,
+						'Failure should not occur until after the implicit timeout has expired');
 				});
 			},
 
