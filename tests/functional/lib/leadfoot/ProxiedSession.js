@@ -48,9 +48,9 @@ define([
 					session.proxyBasePathLength = proxyBasePathLength;
 					oldGet = session._get;
 					oldPost = session._post;
-					session._get = function (path, data) {
+					session._get = function () {
 						++numGetCalls;
-						return util.createPromise(data.url);
+						return util.createPromise(lastUrl);
 					};
 					session._post = function (path, data) {
 						if (path === 'url') {
