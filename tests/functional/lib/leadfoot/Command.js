@@ -34,7 +34,8 @@ define([
 						throw new Error('Error thrown in initialiser should reject the Command');
 					}, function (error) {
 						assert.strictEqual(error.message, 'broken');
-						assert.include(error.stack, 'tests/lib/leadfoot/Command.js:31:13', 'Stack trace should point back to the error');
+						assert.include(error.stack, 'tests/functional/lib/leadfoot/Command.js:31:13',
+							'Stack trace should point back to the error');
 						error.message += ' 2';
 						throw error;
 					}).then(function () {
@@ -64,7 +65,7 @@ define([
 							assert.strictEqual(error.message, 'Invalid call');
 							assert.include(error.stack.slice(0, error.stack.indexOf('\n')), error.message,
 								'Original error message should be provided on the first line of the stack trace');
-							assert.include(error.stack, 'tests/lib/leadfoot/Command.js:60:8',
+							assert.include(error.stack, 'tests/functional/lib/leadfoot/Command.js:61:8',
 								'Stack trace should point back to the async method call that eventually threw the error');
 						});
 				}

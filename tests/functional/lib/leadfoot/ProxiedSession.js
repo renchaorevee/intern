@@ -10,8 +10,9 @@ define([
 		var proxyUrl = 'https://example.invalid/';
 		var proxyBasePathLength = require.toUrl('./').length;
 		var session;
-		var oldPost;
 		var oldGet;
+		var oldPost;
+		var oldDelete;
 		var numGetCalls;
 		var lastUrl;
 		var mockCoverage = { isMockCoverage: true };
@@ -48,6 +49,7 @@ define([
 					session.proxyBasePathLength = proxyBasePathLength;
 					oldGet = session._get;
 					oldPost = session._post;
+					oldDelete = session.server.deleteSession;
 					session._get = function () {
 						++numGetCalls;
 						return util.createPromise(lastUrl);
@@ -60,6 +62,9 @@ define([
 							return util.createPromise(JSON.stringify(mockCoverage));
 						}
 
+						return util.createPromise(null);
+					};
+					session.server.deleteSession = function () {
 						return util.createPromise(null);
 					};
 				});
@@ -76,6 +81,7 @@ define([
 				if (session) {
 					session._get = oldGet;
 					session._post = oldPost;
+					session.server.deleteSession = oldDelete;
 				}
 			},
 
