@@ -52,12 +52,15 @@ define({
 	},
 
 	// Non-functional test suite(s) to run in each browser
-	suites: [ 'intern-selftest/tests/unit/all' ],
+	suites: [
+		'intern-selftest/tests/unit/all'
+	],
 
 	// Functional test suite(s) to run in each browser once non-functional tests are completed
 	functionalSuites: [
 		'intern-selftest/tests/functional/lib/leadfoot/Server',
 		'intern-selftest/tests/functional/lib/leadfoot/Session',
+		'intern-selftest/tests/functional/lib/leadfoot/ProxiedSession',
 		'intern-selftest/tests/functional/lib/leadfoot/Element',
 		'intern-selftest/tests/functional/lib/leadfoot/Command'
 	],
